@@ -91,7 +91,9 @@ def kagome_dos(t, offset, nk, bins=None, de=None):
     def band2(kx, ky):
         return -t + t * np.sqrt(4*(np.cos(kx*pi)**2 + np.cos(ky*pi)**2 + np.cos((ky-kx)*pi)**2) - 3) + offset
     def band3(kx, ky):
-        return 2*t + offset
+        # The full_like function ensures that this scalar value is made to fill
+        # whatever array shape is fed into it.
+        return np.full_like(kx, 2*t + offset)
     # Combine the bands into a single function
     def dispersion(kx, ky):
         return np.array([band1(kx,ky), band2(kx,ky), band3(kx,ky)])
