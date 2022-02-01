@@ -2,7 +2,11 @@
 Main solver for DMFT
 """
 
+import argparse
+
 import numpy as np
+
+# TRIQS libraries
 from h5 import HDFArchive
 import triqs.gf as gf
 import triqs.operators as op
@@ -58,6 +62,10 @@ class DMFTHubbard:
         A['triqs_version'] = triqs.version.version
         A['cthyb_version'] = triqs_cthyb.version.version
     def loop(self, n_loops, archive=None, prior_loops=0):
+        if mpi.is_master_node():
+            print("=================\nStarting DMFT loop\n====================")
+            if prior_loops > 0:
+                print(f"Continuation job from {prior_loops} number of prior loops.")
         # If we aren't doing a continuation job, set our initial guess for the self-energy
         if prior_loops == 0:
             self.S.Sigma_iw << self.mu
@@ -69,6 +77,8 @@ class DMFTHubbard:
         G = self.S.G0_iw.copy()
         # Enter the DMFT loop
         for i_loop in range(n_loops):
+            if mpi.is_master_node():
+                print(f"\n Loop number {i_loop+prior_loops} \n")
             # Do the self-consistency condition
             G.zero()
             for name, _ in G:
@@ -86,6 +96,8 @@ class DMFTHubbard:
                     A[f'G_iw-{i_loop+prior_loops}'] = self.S.G_iw
                     A[f'Sigma_iw-{i_loop+prior_loops}'] = self.S.Sigma_iw
                     A[f'G0_iw-{i_loop+prior_loops}'] = self.S.G0_iw
+        if mpi.is_master_node():
+            print("Finished DMFT loop.")
 
 class DMFTHubbardKagome(DMFTHubbard):
     def set_dos(self, t, offset, nk, bins=None, de=None):
@@ -100,3 +112,36 @@ class DMFTHubbardKagome(DMFTHubbard):
         A['kagome_nk'] = self.nk
         A['kagome_offset'] = self.offset
 
+if __name__ == "__main__":
+    # Set up command line argument parser.
+    # The point is to be able to run regular calculations from the command line
+    # without having to write a whole script.
+    parser = argparse.ArgumentParser(description="Perform a DMFT calculation on the Hubbard model.")
+    parser.add_argument('-b','--beta', type=float, required=True, help="Inverse temperature.")
+    parser.add_argument('-u', type=float, required=True, help="Hubbard U")
+    parser.add_argument('-m','--mu', type=float, default=0, help="Chemical potential")
+    parser.add_argument('-n','--nloops', type=int, required=True, help="Number of DMFT loops.")
+    parser.add_argument('-c','--cycles', type=int, default=20000, help="Number of QMC cycles.")
+    parser.add_argument('-l','--length', type=int, default=50, help="Length of QMC cycles.")
+    parser.add_argument('-w','--warmup', type=int, default=10000, help="Number of warmup QMC cycles.")
+    parser.add_argument('-a','--archive', help="Archive to record data to.")
+
+    subparsers = parser.add_subparsers(dest='lattice', help="Which lattice to solve.")
+
+    kagome_parser = subparsers.add_parser('kagome')
+    kagome_parser.add_argument('-t', type=float, help="Hopping", default=1)
+    kagome_parser.add_argument('--offset', type=float, default=0, help="Offset")
+    kagome_parser.add_argument('--nk', type=int, default=1000, help="Number of k-points.")
+    kagome_parser.add_argument('--bins', type=int, default=50, help="Number of DOS energy bins.")
+    
+    args = parser.parse_args()
+
+    # Initialise the solver.
+    if args.lattice == 'kagome':
+        hubbard = DMFTHubbardKagome(beta=args.beta, u=args.u, mu=args.mu)
+        hubbard.set_dos(t=args.t, offset=args.offset, nk=args.nk, bins=args.bins)
+    else:
+        raise ValueError(f"Unrecognised lattice {args.lattice}.")
+    hubbard.solver_params = dict(n_cycles=args.cycles, length_cycle=args.length, n_warmup_cycles=args.warmup)
+    # Run the loop
+    hubbard.loop(args.nloops, archive=args.archive)
