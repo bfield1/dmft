@@ -22,9 +22,12 @@ class DMFTHubbard:
     Sets up and performs DMFT loops in the Hubbard model.
     Also holds data, so good for analysis.
     """
-    def __init__(self, beta, mu=None, solver_params={}, u=None):
+    def __init__(self, beta, mu=None, solver_params={}, u=None, nl=None):
         self.beta = beta
-        self.S = Solver(beta = beta, gf_struct = [('up',[0]), ('down',[0])])
+        if nl is None:
+            self.S = Solver(beta = beta, gf_struct = [('up',[0]), ('down',[0])])
+        else:
+            self.S = Solver(beta = beta, gf_struct = [('up',[0]), ('down',[0])], n_l=nl)
         self.mu = mu # You need to set this manually.
         self.solver_params = solver_params # You need to set this manually too
         # n_cycles, length_cycle, n_warmup_cycles, measure_G_l
@@ -84,7 +87,7 @@ class DMFTHubbard:
             for name, _ in G:
                 # Hilbert transform: an integral involving the DOS
                 for i in range(len(self.rho)):
-                    G[name] += self.rho[i] * self.delta[i] * gf.inverse(gf.iOmega_n + self.mu - self.energy[i] - self.S.Sigma_iw[name])
+                    G[name] << G[name] + self.rho[i] * self.delta[i] * gf.inverse(gf.iOmega_n + self.mu - self.energy[i] - self.S.Sigma_iw[name])
             # Get the next impurity G0
             for name, g0 in self.S.G0_iw:
                 g0 << gf.inverse(gf.inverse(G[name]) + self.S.Sigma_iw[name])
@@ -96,13 +99,17 @@ class DMFTHubbard:
                     A[f'G_iw-{i_loop+prior_loops}'] = self.S.G_iw
                     A[f'Sigma_iw-{i_loop+prior_loops}'] = self.S.Sigma_iw
                     A[f'G0_iw-{i_loop+prior_loops}'] = self.S.G0_iw
+                    if 'measure_G_l' in self.solver_params and self.solver_params['measure_G_l']:
+                        A[f'G_l-{i_loop+prior_loops}'] = self.S.G_l
         if mpi.is_master_node():
             print("Finished DMFT loop.")
 
 class DMFTHubbardKagome(DMFTHubbard):
     def set_dos(self, t, offset, nk, bins=None, de=None):
         """Record non-interacting DOS for kagome lattice."""
-        super().set_dos(*dmft.dos.kagome_dos(t, offset, nk, bins, de))
+        rho, energy, delta = dmft.dos.kagome_dos(t, offset, nk, bins, de)
+        rho /= 3 # The solver requires it to be normalised to 1
+        super().set_dos(rho, energy, delta)
         self.t = t
         self.offset = offset
         self.nk = nk
@@ -125,6 +132,7 @@ if __name__ == "__main__":
     parser.add_argument('-l','--length', type=int, default=50, help="Length of QMC cycles.")
     parser.add_argument('-w','--warmup', type=int, default=10000, help="Number of warmup QMC cycles.")
     parser.add_argument('-a','--archive', help="Archive to record data to.")
+    parser.add_argument('--nl', type=int, help="Number of Legendre polynomials to fit G_l in QMC (if any).")
 
     subparsers = parser.add_subparsers(dest='lattice', help="Which lattice to solve.")
 
@@ -138,10 +146,12 @@ if __name__ == "__main__":
 
     # Initialise the solver.
     if args.lattice == 'kagome':
-        hubbard = DMFTHubbardKagome(beta=args.beta, u=args.u, mu=args.mu)
+        hubbard = DMFTHubbardKagome(beta=args.beta, u=args.u, mu=args.mu, nl=args.nl)
         hubbard.set_dos(t=args.t, offset=args.offset, nk=args.nk, bins=args.bins)
     else:
         raise ValueError(f"Unrecognised lattice {args.lattice}.")
     hubbard.solver_params = dict(n_cycles=args.cycles, length_cycle=args.length, n_warmup_cycles=args.warmup)
+    if args.nl is not None:
+        hubbard.solver_params['measure_G_l'] = True
     # Run the loop
     hubbard.loop(args.nloops, archive=args.archive)
