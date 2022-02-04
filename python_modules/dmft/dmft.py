@@ -60,7 +60,8 @@ class DMFTHubbard:
         self.h_int = u * op.n('up',0) * op.n('down',0)
     def record_metadata(self, A):
         """Records metadata to a pre-opened archive A."""
-        A.create_group('params')
+        if 'params' not in A:
+            A.create_group('params')
         SG = A['params']
         SG['U'] = self.U
         SG['mu'] = self.mu
@@ -68,7 +69,8 @@ class DMFTHubbard:
         SG['solver_params'] = self.solver_params
         SG['dos'] = dict(rho=self.rho, energy=self.energy, delta=self.delta)
         SG['MPI_ranks'] = mpi.size
-        A.create_group('code')
+        if 'code' not in A:
+            A.create_group('code')
         SG = A['code']
         SG['triqs_version'] = triqs.version.version
         SG['cthyb_version'] = triqs_cthyb.version.version
