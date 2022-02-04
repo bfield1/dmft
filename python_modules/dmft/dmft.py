@@ -60,15 +60,20 @@ class DMFTHubbard:
         self.h_int = u * op.n('up',0) * op.n('down',0)
     def record_metadata(self, A):
         """Records metadata to a pre-opened archive A."""
-        A['U'] = self.U
-        A['mu'] = self.mu
-        A['beta'] = self.beta
-        A['solver_params'] = self.solver_params
-        A['dos'] = dict(rho=self.rho, energy=self.energy, delta=self.delta)
-        A['triqs_version'] = triqs.version.version
-        A['cthyb_version'] = triqs_cthyb.version.version
+        A.create_group('params')
+        SG = A['params']
+        SG['U'] = self.U
+        SG['mu'] = self.mu
+        SG['beta'] = self.beta
+        SG['solver_params'] = self.solver_params
+        SG['dos'] = dict(rho=self.rho, energy=self.energy, delta=self.delta)
+        SG['MPI_ranks'] = mpi.size
+        A.create_group('code')
+        SG = A['code']
+        SG['triqs_version'] = triqs.version.version
+        SG['cthyb_version'] = triqs_cthyb.version.version
         try:
-            A['dmft_version'] = dmft.version.get_git_hash()
+            SG['dmft_version'] = dmft.version.get_git_hash()
         except CalledProcessError:
             warnings.warn("Unable to get dmft_version")
     def loop(self, n_loops, archive=None, prior_loops=0):
@@ -103,11 +108,14 @@ class DMFTHubbard:
             # record results
             if archive is not None and mpi.is_master_node():
                 with HDFArchive(archive,'a') as A:
-                    A[f'G_iw-{i_loop+prior_loops}'] = self.S.G_iw
-                    A[f'Sigma_iw-{i_loop+prior_loops}'] = self.S.Sigma_iw
-                    A[f'G0_iw-{i_loop+prior_loops}'] = self.S.G0_iw
+                    key = 'loop-{:03d}'.format(i_loop+prior_loops)
+                    A.create_group(key)
+                    SG = A[key]
+                    SG['G_iw'] = self.S.G_iw
+                    SG['Sigma_iw'] = self.S.Sigma_iw
+                    SG['G0_iw'] = self.S.G0_iw
                     if 'measure_G_l' in self.solver_params and self.solver_params['measure_G_l']:
-                        A[f'G_l-{i_loop+prior_loops}'] = self.S.G_l
+                        SG['G_l'] = self.S.G_l
         if mpi.is_master_node():
             print("Finished DMFT loop.")
 
@@ -122,9 +130,10 @@ class DMFTHubbardKagome(DMFTHubbard):
         self.nk = nk
     def record_metadata(self, A):
         super().record_metadata(A)
-        A['kagome_t'] = self.t
-        A['kagome_nk'] = self.nk
-        A['kagome_offset'] = self.offset
+        SG = A['params']
+        SG['kagome_t'] = self.t
+        SG['kagome_nk'] = self.nk
+        SG['kagome_offset'] = self.offset
 
 if __name__ == "__main__":
     # Set up command line argument parser.
