@@ -3,6 +3,8 @@ Main solver for DMFT
 """
 
 import argparse
+import warnings
+from subprocess import CalledProcessError
 
 import numpy as np
 
@@ -16,6 +18,7 @@ import triqs_cthyb.version
 import triqs.version
 
 import dmft.dos
+import dmft.version
 
 class DMFTHubbard:
     """
@@ -64,6 +67,10 @@ class DMFTHubbard:
         A['dos'] = dict(rho=self.rho, energy=self.energy, delta=self.delta)
         A['triqs_version'] = triqs.version.version
         A['cthyb_version'] = triqs_cthyb.version.version
+        try:
+            A['dmft_version'] = dmft.version.get_git_hash()
+        except CalledProcessError:
+            warnings.warn("Unable to get dmft_version")
     def loop(self, n_loops, archive=None, prior_loops=0):
         if mpi.is_master_node():
             print("=================\nStarting DMFT loop\n====================")
