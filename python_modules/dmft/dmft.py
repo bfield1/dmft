@@ -116,6 +116,7 @@ class DMFTHubbard:
                     SG['G_iw'] = self.S.G_iw
                     SG['Sigma_iw'] = self.S.Sigma_iw
                     SG['G0_iw'] = self.S.G0_iw
+                    SG['G_tau'] = self.S.G_tau
                     if 'measure_G_l' in self.solver_params and self.solver_params['measure_G_l']:
                         SG['G_l'] = self.S.G_l
         if mpi.is_master_node():
