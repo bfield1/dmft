@@ -102,3 +102,56 @@ def kagome_dos(t, offset, nk, bins=None, de=None):
     # Normalise the DOS because we have three bands
     rho *= 3
     return rho, energy, delta
+
+def bethe_dos(t, offset=0, bins=None, de=None):
+    """
+    Return the DOS for a Bethe lattice with infinite coordination.
+
+    This is just a semicircle with radius 2t.
+    
+    Inputs:
+        t - float, hopping constant
+        offset - float, energy offset of bands
+        bins - integer. Number of energy points.
+        de - positive float, used if bins is not provided. Width of energy
+            bins.
+    Outputs: Several numpy arrays, shape (number_of_bins,).
+        rho - density of states
+        energy - midpoints of energy bins
+        delta - width of energy bins
+    DOS is normalised such that np.sum(rho*delta) == 1.
+    """
+    # The DOS is \sqrt{1-(E/2t)^2}/(\pi t).
+    # We want to histogram it. So we integrate it into bins.
+    # The indefinite integral is (x\sqrt{1-x^2}+\arcsin(x))/\pi, x=E/2t
+    # Determine our energy range and the number of bins required,
+    if bins is None and de is None:
+        raise TypeError("Must provide one of bins or de")
+    emin = -2*t + offset
+    emax = 2*t + offset
+    if bins is None:
+        # Number of bins needed
+        bins = int(np.ceil((emax - emin)/de))
+        # Now we expand the energy range so the bins are of the right width,
+        # keeping the midpoint the same.
+        emin = (emax + emin - bins*de)/2
+        emax = bins*de + emin
+    # Get the bin edges
+    bin_edges = np.linspace(emin, emax, bins+1)
+    # Get the bin centers and energy differences
+    energy = (bin_edges[0:-1] + bin_edges[1:])/2
+    delta = np.diff(bin_edges)
+    # Trim the bin edges so we remain in the valid integration domain
+    # We didn't do this earlier because our 'true' bin edges for the purposes
+    # of histograms may be beyond the boundary.
+    # If we've set a constant de, only the extreme bin edges will be out of range
+    bin_edges[0] = -2*t + offset
+    bin_edges[-1] = 2*t + offset
+    # Get our DOS by integration in each bin
+    def integral(x):
+        # x = (E-offset)/2t
+        return (x * np.sqrt(1-x**2) + np.arcsin(x))/np.pi
+    rho = integral((bin_edges[1:]-offset)/(2*t)) - integral((bin_edges[0:-1]-offset)/(2*t))
+    # Normalise such that sum(rho*delta) == 1
+    rho = rho/delta
+    return rho, energy, delta
