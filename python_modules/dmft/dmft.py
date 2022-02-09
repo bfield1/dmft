@@ -138,6 +138,19 @@ class DMFTHubbardKagome(DMFTHubbard):
         SG['kagome_nk'] = self.nk
         SG['kagome_offset'] = self.offset
 
+class DMFTHubbardBethe(DMFTHubbard):
+    def set_dos(self, t, offset, bins=None, de=None):
+        """Record non-interacting DOS for Bethe lattice."""
+        rho, energy, delta = dmft.dos.bethe_dos(t, offset, bins, de)
+        super().set_dos(rho, energy, delta)
+        self.t = t
+        self.offset = offset
+    def record_metadata(self, A):
+        super().record_metadata(A)
+        SG = A['params']
+        SG['bethe_t'] = self.t
+        SG['bethe_offset'] = self.offset
+
 if __name__ == "__main__":
     # Set up command line argument parser.
     # The point is to be able to run regular calculations from the command line
@@ -147,7 +160,7 @@ if __name__ == "__main__":
     parser.add_argument('-u', type=float, required=True, help="Hubbard U")
     parser.add_argument('-m','--mu', type=float, default=0, help="Chemical potential")
     parser.add_argument('-n','--nloops', type=int, required=True, help="Number of DMFT loops.")
-    parser.add_argument('-c','--cycles', type=int, default=20000, help="Number of QMC cycles.")
+    parser.add_argument('-c','--cycles', type=int, default=200000, help="Number of QMC cycles.")
     parser.add_argument('-l','--length', type=int, default=50, help="Length of QMC cycles.")
     parser.add_argument('-w','--warmup', type=int, default=10000, help="Number of warmup QMC cycles.")
     parser.add_argument('-a','--archive', help="Archive to record data to.")
@@ -158,8 +171,13 @@ if __name__ == "__main__":
     kagome_parser = subparsers.add_parser('kagome')
     kagome_parser.add_argument('-t', type=float, help="Hopping", default=1)
     kagome_parser.add_argument('--offset', type=float, default=0, help="Offset")
-    kagome_parser.add_argument('--nk', type=int, default=1000, help="Number of k-points.")
-    kagome_parser.add_argument('--bins', type=int, default=50, help="Number of DOS energy bins.")
+    kagome_parser.add_argument('--nk', type=int, default=2000, help="Number of k-points.")
+    kagome_parser.add_argument('--bins', type=int, default=300, help="Number of DOS energy bins.")
+    
+    bethe_parser = subparsers.add_parser('bethe')
+    bethe_parser.add_argument('-t', type=float, help="Hopping", default=1)
+    bethe_parser.add_argument('--offset', type=float, default=0, help="Offset")
+    bethe_parser.add_argument('--bins', type=int, default=200, help="Number of DOS energy bins.")
     
     args = parser.parse_args()
 
@@ -167,6 +185,9 @@ if __name__ == "__main__":
     if args.lattice == 'kagome':
         hubbard = DMFTHubbardKagome(beta=args.beta, u=args.u, mu=args.mu, nl=args.nl)
         hubbard.set_dos(t=args.t, offset=args.offset, nk=args.nk, bins=args.bins)
+    elif args.lattice == 'bethe':
+        hubbard = DMFTHubbardBethe(beta=args.beta, u=args.u, mu=args.mu, nl=args.nl)
+        hubbard.set_dos(t=args.t, offset=args.offset, bins=args.bins)
     else:
         raise ValueError(f"Unrecognised lattice {args.lattice}.")
     hubbard.solver_params = dict(n_cycles=args.cycles, length_cycle=args.length, n_warmup_cycles=args.warmup)
