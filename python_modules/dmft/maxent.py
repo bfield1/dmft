@@ -39,10 +39,10 @@ class MaxEnt():
     @property
     def alpha(self):
         """The alpha mesh to sample MaxEnt along"""
-        return self.tm.alpha
+        return self.tm.alpha_mesh
     @alpha.setter
     def alpha(self, value):
-        self.tm.alpha = value
+        self.tm.alpha_mesh = value
     def generate_alpha(self, amin, amax, nalpha, scale_alpha=1):
         """
         Sets a logarithmic alpha mesh
@@ -95,7 +95,7 @@ class MaxEnt():
         self.tm.set_error(err)
     def run(self):
         """Runs MaxEnt and gets the results."""
-        self.results = tm.run()
+        self.results = self.tm.run()
         self.data = self.results.data
         return self.results
     def save(self, archive, path):
@@ -193,7 +193,7 @@ if __name__ == "__main__":
     # Get the omega mesh
     if args.omin is not None:
         if args.omax is not None and args.nomega is not None:
-            maxent.generate_omega_mesh(args.omin, args.omax, args.nomega)
+            maxent.generate_omega(args.omin, args.omax, args.nomega)
         else:
             warn("Must specify all of omin, omax, and nomega; omega_mesh unset")
     elif args.omax is not None or args.nomega is not None:
@@ -202,7 +202,8 @@ if __name__ == "__main__":
     maxent.set_G_tau(G_tau)
     maxent.set_error(args.error)
     # Record the metadata
-    write_metadata(args.output)
+    if mpi.is_master_node():
+        write_metadata(args.output)
     # Run the MaxEnt calculation
     maxent.run()
     # Record the result
