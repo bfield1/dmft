@@ -12,7 +12,116 @@ import triqs_maxent as me
 import triqs.utility.mpi as mpi
 
 import dmft.version
-from dmft.utils import h5_write_full_path
+from dmft.utils import h5_write_full_path, h5_read_full_path
+
+class MaxEnt():
+    def __init__(self, cost_function='bryan', probability='normal', amin=None,
+            amax=None, nalpha=None, **kwargs):
+        """
+        Class for generating, holding, and manipulating MaxEnt data.
+        
+        A lot of the keyword arguments can be set later.
+        Keyword Arguments:
+            cost_function - for TauMaxEnt
+            probability - for TauMaxEnt
+            alpha_mesh - an AlphaMesh for TauMaxEnt
+            amin, amax, nalpha - float, float, integer - parameters to generate
+                an AlphaMesh. Not to be used with alpha_mesh.
+            omega_mesh
+            All other kwargs - for TauMaxEnt
+        """
+        self.tm = me.TauMaxEnt(cost_function=cost_function, probability=probability, **kwargs)
+        if isinstance(self.alpha, me.DataAlphaMesh) and 'scale_alpha' not in kwargs:
+            # If a DataAlphaMesh has been provided, we probably don't need to scale
+            self.scale_alpha = 1
+        if amin is not None:
+            self.generate_alpha(amin, amax, nalpha)
+    @property
+    def alpha(self):
+        """The alpha mesh to sample MaxEnt along"""
+        return self.tm.alpha
+    @alpha.setter
+    def alpha(self, value):
+        self.tm.alpha = value
+    def generate_alpha(self, amin, amax, nalpha, scale_alpha=1):
+        """
+        Sets a logarithmic alpha mesh
+
+        Inputs: amin - float, minimum alpha
+            amax - float, maximum alpha
+            nalpha - positive integer, number of alpha points
+            scale_alpha - float or str('ndata'). The scale_alpha argument
+                for triqs_maxent.run. Defaults to 1 here because I assume that
+                when you explicitly set alpha values you want them to be the 
+                values you specify.
+        Output: triqs_maxent.LogAlphaMesh
+        """
+        self.alpha = me.LogAlphaMesh(amin, amax, nalpha)
+        self.scale_alpha = scale_alpha
+        return self.alpha
+    @property
+    def scale_alpha(self):
+        return self.tm.scale_alpha
+    @scale_alpha.setter
+    def scale_alpha(self, value):
+        self.tm.scale_alpha = value
+    @property
+    def omega(self):
+        """The omega mesh for the output spectrum"""
+        return self.tm.omega
+    @omega.setter
+    def omega(self, value):
+        self.tm.omega = value
+    def generate_omega(self, omin, omax, nomega, cls=me.HyperbolicOmegaMesh):
+        """
+        Sets the omega mesh
+
+        Inputs: omin - float, minimum omega
+            omax - float, maximum omega
+            nomega - positive integer, number of omega points
+            cls - child of triqs_maxent.BaseOmegaMesh
+        Output: cls instance
+        """
+        self.omega = cls(omin, omax, nomega)
+        return self.omega
+    def set_G_tau(self, G_tau):
+        """Sets the G_tau for MaxEnt"""
+        self.tm.set_G_tau(G_tau)
+    def load_G_tau(self, archive, block='up', index=0):
+        """Loads a G_tau from the last DMFT loop in a HDF5 archive"""
+        G_tau_block = get_last_G_tau(archive)
+        self.set_G_tau(G_tau_block[block][index])
+    def set_error(self, err):
+        self.tm.set_error(err)
+    def run(self):
+        """Runs MaxEnt and gets the results."""
+        self.results = tm.run()
+        return self.results
+    def save(self, archive, path):
+        """
+        Saves the results to path in a HDF5 archive
+        """
+        if isinstance(self.results, me.MaxEntResult):
+            # If we have run, then it will be MaxEntResult, but we want data
+            h5_write_full_path(archive, self.results.data, path)
+        else:
+            # If we have loaded the data, then it will be MaxEntResultData
+            h5_write_full_path(archive, self.results, path)
+    @classmethod
+    def load(cls, archive, path):
+        """
+        Reads saved MaxEnt results from path in a HDF5 archive
+
+        Compatible with any triqs_maxent.MaxEntResultData, not just those
+        created by the class.
+        Does not set the error, as that doesn't save.
+        """
+        data = h5_read_full_path(archive, path)
+        self = cls(alpha_mesh=data.alpha)
+        self.results = data
+        self.tm.set_G_tau_data(data.data_variable, data.G_orig)
+        self.omega = data.omega
+        return self
 
 def run_maxent(G_tau, err, alpha_mesh=None, omega_mesh=None, **kwargs):
     """
