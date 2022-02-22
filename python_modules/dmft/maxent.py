@@ -96,17 +96,13 @@ class MaxEnt():
     def run(self):
         """Runs MaxEnt and gets the results."""
         self.results = tm.run()
+        self.data = self.results.data
         return self.results
     def save(self, archive, path):
         """
         Saves the results to path in a HDF5 archive
         """
-        if isinstance(self.results, me.MaxEntResult):
-            # If we have run, then it will be MaxEntResult, but we want data
-            h5_write_full_path(archive, self.results.data, path)
-        else:
-            # If we have loaded the data, then it will be MaxEntResultData
-            h5_write_full_path(archive, self.results, path)
+        h5_write_full_path(archive, self.data, path)
     @classmethod
     def load(cls, archive, path):
         """
@@ -115,13 +111,18 @@ class MaxEnt():
         Compatible with any triqs_maxent.MaxEntResultData, not just those
         created by the class.
         Does not set the error, as that doesn't save.
+        Also does not set self.results, which is a MaxEntResult object,
+        as only MaxEntResultData is saved. But we only need the latter.
         """
         data = h5_read_full_path(archive, path)
         self = cls(alpha_mesh=data.alpha)
-        self.results = data
+        self.data = data
         self.tm.set_G_tau_data(data.data_variable, data.G_orig)
         self.omega = data.omega
         return self
+    def write_metadata(self, archive):
+        """Writes version data to a predetermined location in a HDF5 archive"""
+        write_metadata(archive)
 
 def run_maxent(G_tau, err, alpha_mesh=None, omega_mesh=None, **kwargs):
     """
@@ -187,31 +188,23 @@ if __name__ == "__main__":
 
     # Load G_tau, taking one of the blocks.
     G_tau = get_last_G_tau(args.input)[args.block]
-    # Get the alpha mesh
-    alpha_mesh = None
-    scale_alpha = 'ndata'
-    if args.amin is not None:
-        if args.amax is not None and args.nalpha is not None:
-            alpha_mesh = me.LogAlphaMesh(args.amin, args.amax, args.nalpha)
-            # If we explicitly set alpha, it should be the value we say it is.
-            scale_alpha = 1
-        else:
-            warn("Must specify all of amin, amax, and nalpha; alpha_mesh unset")
-    elif args.amax is not None or args.nalpha is not None:
-        warn("Must specify all of amin, amax, and nalpha; alpha_mesh unset")
+    # Generate MaxEnt object with its alpha mesh
+    maxent = MaxEnt(amin=args.amin, amax=args.amax, nalpha=args.nalpha)
     # Get the omega mesh
-    omega_mesh = None
     if args.omin is not None:
         if args.omax is not None and args.nomega is not None:
-            omega_mesh = me.HyperbolicOmegaMesh(args.omin, args.omax, args.nomega)
+            maxent.generate_omega_mesh(args.omin, args.omax, args.nomega)
         else:
             warn("Must specify all of omin, omax, and nomega; omega_mesh unset")
     elif args.omax is not None or args.nomega is not None:
         warn("Must specify all of omin, omax, and nomega; omega_mesh unset")
+    # Set outher MaxEnt data
+    maxent.set_G_tau(G_tau)
+    maxent.set_error(args.error)
     # Record the metadata
     write_metadata(args.output)
     # Run the MaxEnt calculation
-    result = run_maxent(G_tau, args.error, alpha_mesh, omega_mesh, scale_alpha=scale_alpha)
+    maxent.run()
     # Record the result
     if mpi.is_master_node():
-        h5_write_full_path(args.output, result.data, args.name)
+        maxent.save(args.output, args.name)
