@@ -5,6 +5,7 @@ import argparse
 from warnings import warn
 
 import numpy as np
+import matplotlib.pyplot as plt
 
 import triqs.gf as gf # Needed to import the DMFT data
 from h5 import HDFArchive
@@ -13,6 +14,57 @@ import triqs.utility.mpi as mpi
 
 import dmft.version
 from dmft.utils import h5_write_full_path, h5_read_full_path
+
+def spectrum_plotter(func):
+    """
+    A decorator for functions which plot spectra.
+    Handles things like setting the axes limits and labels and drawing the
+    legends, as well as creating and returning the Axes.
+    The function must take an argument ax=Axes, an Axes object, and do its
+    plotting within that Axes object, modifying it in place.
+    The function must be able to accept arbitrary arguments and kwargs,
+    because I pass literally everything to the function just in case someone
+    wants it (maybe it alters the behaviour? I don't know), but I do not expect
+    you to do any processing with the default ones besides ax.
+    Also updates the docstring to append the plotter information.
+    """
+    def plotter(*args, ax=None, emin=None, emax=None, amax=None, inplace=True, axeslabels=True, **kwargs):
+        """
+        Plotter keyword arguments:
+            ax - matplotlib Axes
+            emin, emax - floats, x-limits
+            amax - float, y-limit (the other is 0)
+            inplace - Boolean, whether or not to plt.show(). If True, returned
+                objects have undefined behaviour.
+            axeslabels - Boolean, whether or not to set the axes labels.
+        Outputs:
+            Figure, Axes
+        """
+        # Generate the Axes
+        if ax is None:
+            fig, ax = plt.subplots()
+        else:
+            fig = ax.figure
+        # Create the plots
+        func(*args, **kwargs, ax=ax, emin=emin, emax=emax, amax=amax,
+                inplace=inplace, axeslabels=axeslabels)
+        # Adjust axes limits
+        ax.set_xlim(emin, emax)
+        ax.set_ylim(0, amax)
+        # Draw axes labels
+        if axeslabels:
+            ax.set_xlabel(r'$\omega$')
+            ax.set_ylabel(r'$A(\omega)$')
+        # Show
+        if inplace:
+            plt.show()
+        return fig, ax
+    # Update the documentation to fit the original function
+    # As I want to concatenate docstrings, I need to do it
+    # manually rather than using functools.wrap
+    plotter.__doc__ = func.__doc__ + plotter.__doc__
+    plotter.__name__ = func.__name__
+    return plotter
 
 class MaxEnt():
     def __init__(self, cost_function='bryan', probability='normal', amin=None,
@@ -123,6 +175,100 @@ class MaxEnt():
     def write_metadata(self, archive):
         """Writes version data to a predetermined location in a HDF5 archive"""
         write_metadata(archive)
+    # Now we want some plotting scripts to show the results
+    @spectrum_plotter
+    def plot_spectrum(self, choice=None, **kwargs):
+        """
+        Plots the spectral function
+
+        Inputs:
+            choice - integer or string. If integer, is an alpha index.
+                If string, is an analyzer name (possibly with the trailing
+                "Analyzer" dropped).
+                If unspecified, reverts to the default analyzer.
+        """
+        ax = kwargs['ax']
+        # Parse the choice
+        if choice is None:
+            # Default
+            A = self.data.default_analyzer['A_out']
+        elif isinstance(choice, str):
+            # Choice is an Analyzer name
+            if choice in self.data.analyzer_results.keys():
+                A = self.data.analyzer_results[choice]['A_out']
+            else:
+                A = self.data.analyzer_results[choice+'Analyzer']['A_out']
+        else:
+            # Assume choice is an integer.
+            A = self.data.A[choice]
+        # Plot
+        ax.plot(self.omega, A)
+    #
+    @spectrum_plotter
+    def plot_spectrum_fit_comparison(self, probability=False, legend=True, **kwargs):
+        """
+        Plots the spectral functions chosen by the different alpha fitting methods
+
+        Namely, plots LineFit, Chi2Curvature, Entropy, and optionally Bryan
+        and Classic. I leave the last two as optional because getting reliable
+        results from them is challenging.
+
+        Inputs:
+            probability - Boolean, whether or not to plot the probability-based
+                methods (Classic and Bryan). Default False.
+            legend - Boolean (default True), whether or not to make a legend.
+        """
+        ax = kwargs['ax']
+        # List the analyzers of interest
+        analyzers = ['LineFit','Chi2Curvature','Entropy']
+        if probability:
+            # I'll plot Bryan and Classic underneath LineFit etc.
+            analyzers = ['Bryan','Classic'] + analyzers
+        # Plot
+        for an in analyzers:
+            ax.plot(self.data.omega, self.data.analyzer_results[an+'Analyzer']['A_out'], label=an)
+        # Draw the legend
+        if legend:
+            ax.legend()
+    #
+    @spectrum_plotter
+    def plot_spectrum_alpha_comparison(self, alpha, a_range=4, legend=True, **kwargs):
+        """
+        Plots the spectra for a few values of alpha around a given alpha
+
+        Useful for determining the stability of a spectrum over an alpha window
+        Inputs:
+            alpha - string or integer. If string, is the name of an analyzer
+                from which to take the optimal alpha. If an integer, is the
+                index from which to take the alpha.
+                String supports short form, where you omit trailing "Analyzer".
+            a_range - positive integer (default 4). Number of alpha's on either
+                side of the chosen alpha to also plot. Will automatically
+                truncate if go beyond the allowed alpha values.
+            legend - Boolean (default True), whether or not to make a legend.
+        """
+        ax = kwargs['ax']
+        # If alpha is a string, convert to a number.
+        if isinstance(alpha, str):
+            if alpha in self.data.analyzer_results.keys():
+                alpha = self.data.analyzer_results[alpha]['alpha_index']
+            else:
+                # Allow shortened names to work, where we omit 'Analyzer'.
+                alpha = self.data.analyzer_results[alpha+'Analyzer']['alpha_index']
+        # If the given alpha index was negative, convert to positive.
+        if alpha < 0:
+            alpha = len(self.alpha) + alpha
+        # Get our range
+        alpha_range = np.arange(max(alpha-a_range, 0), min(alpha+a_range+1, len(self.alpha)))
+        # Plot
+        for i in alpha_range:
+            ax.plot(self.omega, self.data.A[i],
+                    color=[max(i-alpha,0)/a_range, 0, max(alpha-i,0)/a_range],
+                    label='{:.2e}'.format(self.alpha[i]))
+        # Draw the legend
+        if legend:
+            ax.legend()
+
 
 def run_maxent(G_tau, err, alpha_mesh=None, omega_mesh=None, **kwargs):
     """
