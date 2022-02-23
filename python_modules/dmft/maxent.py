@@ -3,6 +3,7 @@ Runs basic MaxEnt processing
 """
 import argparse
 from warnings import warn
+import functools
 
 import numpy as np
 import matplotlib.pyplot as plt
@@ -15,6 +16,16 @@ import triqs.utility.mpi as mpi
 import dmft.version
 from dmft.utils import h5_write_full_path, h5_read_full_path
 
+def wrap_plot(func):
+    @functools.wraps(func)
+    def plotter(*args, ax=None, inplace=True, **kwargs):
+        if ax is not None:
+            plt.sca(ax)
+        func(*args, **kwargs)
+        if inplace is True:
+            plt.show()
+        return plt.gcf(), plt.gca()
+    return plotter
 def spectrum_plotter(func):
     """
     A decorator for functions which plot spectra.
@@ -268,6 +279,25 @@ class MaxEnt():
         # Draw the legend
         if legend:
             ax.legend()
+    # Mirror a few of the internal plotting functions
+    @wrap_plot
+    def plot_chi2(self, *args, **kwargs):
+        self.data.plot_chi2(*args, **kwargs)
+    @wrap_plot
+    def plot_curvature(self, *args, **kwargs):
+        self.data.analyzer_results['Chi2CurvatureAnalyzer'].plot_curvature(*args, **kwargs)
+    @wrap_plot
+    def plot_S(self, *args, **kwargs):
+        self.data.plot_S(*args, **kwargs)
+    @wrap_plot
+    def plot_dS_dalpha(self, *args, **kwargs):
+        self.data.analyzer_results['EntropyAnalyzer'].plot_dS_dalpha(*args, **kwargs)
+    @wrap_plot
+    def plot_linefit(self, *args, **kwargs):
+        self.data.analyzer_results['LineFitAnalyzer'].plot_linefit(*args, **kwargs)
+    @wrap_plot
+    def plot_probability(self, *args, **kwargs):
+        self.data.plot_probability(*args, **kwargs)
 
 
 def run_maxent(G_tau, err, alpha_mesh=None, omega_mesh=None, **kwargs):
