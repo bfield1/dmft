@@ -298,6 +298,108 @@ class MaxEnt():
     @wrap_plot
     def plot_probability(self, *args, **kwargs):
         self.data.plot_probability(*args, **kwargs)
+    def plot_metrics(self, chi2=True, linefit=True, curvature=True,
+            probability=True, S=True, dS=True, mark_alphas=True,
+            analyzer_list=['LineFitAnalyzer','Chi2CurvatureAnalyzer','ClassicAnalyzer','EntropyAnalyzer'],
+            inplace=True, tight_layout=True):
+        """
+        Does a combined plot of all the relevant metrics.
+
+        Inputs:
+            chi2 - Boolean. Plot chi2?
+            linefit - Boolean. Plot linefit on chi2? (If True, plots over chi2)
+            curvature - Boolean. Plot chi2 curvature?
+            probability - Boolean. Plot probability?
+            S - Boolean. Plot entropy?
+            dS - Boolean. Plot dS/dlogalpha?
+            mark_alphas - Boolean. Whether to mark the alphas chosen by the
+                analyzers.
+            analyzer_list - list of strings. Analyzers for mark_alpha.
+            inplace - Boolean. Whether to plt.show()
+            tight_layout - Boolean. Call fig.tight_layout()?
+        Outputs:
+            Figure, list of Axes.
+        """
+        if linefit:
+            chi2 = True
+        # Determine how many plots we have.
+        n_plots = chi2 + (curvature or probability) + (S or dS)
+        if n_plots == 0:
+            raise TypeError("Cannot plot nothing.")
+        # Make a figure
+        fig, axs = plt.subplots(nrows=n_plots, ncols=1, sharex=True,
+                squeeze=False, figsize=[6.4,1.5*n_plots+2])
+        # Determine what order the plots go in.
+        arrangement = [[('chi2',chi2),('linefit',linefit)],
+                [('curvature',curvature),('probability',probability)],
+                [('S',S),('dS',dS)]]
+        # Delete rows which have nothing in them.
+        for i in [2,1,0]:
+            if (not arrangement[i][0][1]) and (not arrangement[i][1][1]):
+                del arrangement[i]
+            # and delete false elements
+            elif not arrangement[i][1][1]:
+                del arrangement[i][1]
+            elif not arrangement[i][0][1]:
+                del arrangement[i][0]
+        # Arrangement now contains only those plots we wish to plot
+        # Record which one is on the bottom so we know where to draw alpha
+        bottom = arrangement[-1][0][0]
+        # Have a mapping from string to y-variable
+        ydict = dict(curvature=self.data.analyzer_results['Chi2CurvatureAnalyzer']['curvature'],
+                probability=np.exp(self.data.probability-np.nanmax(self.data.probability)),
+                S=self.data.S,
+                dS=self.data.analyzer_results['EntropyAnalyzer']['dS_dalpha'])
+        # Mapping from arrangement string to ylabel
+        ylabels = dict(curvature='curvature', probability=r'$p(\alpha)$',
+                S='$S$', dS=r'$dS/d{\rm log}\alpha$')
+        # Go through the rows and make plots
+        for ax, row in zip(axs[:,0], arrangement):
+            # Chi2 and linefit needs different handling
+            if row[0][0] == 'chi2':
+                ax.loglog(self.alpha, self.data.chi2)
+                if linefit:
+                    ylims = ax.get_ylim()
+                    # Manually reconstruct the lines (in log-space!)
+                    linefit_params = self.data.analyzer_results['LineFitAnalyzer']['linefit_params']
+                    for line in linefit_params:
+                        if len(line) == 1:
+                            ax.loglog(self.alpha, np.exp(line[0]) * np.ones(self.alpha.shape), zorder=1.9)
+                        else:
+                            ax.loglog(self.alpha, np.exp(line[1]) * np.power(self.alpha, line[0]), zorder=1.9)
+                    ax.set_ylim(ylims)
+                ax.set_ylabel(r'$\chi^2$')
+            else:
+                color1 = 'C0'
+                color2 = 'C1'
+                ax.semilogx(self.alpha, ydict[row[0][0]], c=color1)
+                ax.set_ylabel(ylabels[row[0][0]])
+                if len(row) > 1:
+                    # Color the y axis
+                    ax.set_ylabel(ylabels[row[0][0]], color=color1)
+                    ax.tick_params(axis='y', labelcolor=color1)
+                    # Create a secondary axis
+                    ax2 = ax.twinx()
+                    ax2.semilogx(self.alpha, ydict[row[1][0]], c=color2)
+                    ax2.set_ylabel(ylabels[row[1][0]], color=color2)
+                    ax2.tick_params(axis='y', labelcolor=color2)
+            # Draw the x-axis label
+            if row[0][0] == bottom:
+                ax.set_xlabel(r'$\alpha$')
+        # Annotate alphas
+        if mark_alphas:
+            for an in analyzer_list:
+                alpha = self.alpha[self.data.analyzer_results[an]['alpha_index']]
+                for ax in axs.flat:
+                    ax.axvline(alpha, c='0.5', lw=1)
+                axs[0,0].annotate(an.replace('Analyzer',''), (alpha, 0.5),
+                        xycoords=('data','axes fraction'), va='center', ha='right',
+                        rotation='vertical')
+        if tight_layout:
+            fig.tight_layout()
+        if inplace:
+            plt.show()
+        return fig, axs
 
 
 def run_maxent(G_tau, err, alpha_mesh=None, omega_mesh=None, **kwargs):
