@@ -29,6 +29,12 @@ def write(archive, name, textfile):
     else:
         with open(textfile, 'r') as f:
             text = f.readlines()
+        # HDF5 Archives do not allow archive[name] = text if name already exists
+        # Instead you need to use archive[name][()] = text to overwrite the object
+        # But they must have the same shape to do that.
+        # So the easiest way is to delete the old object entirely and start again
+        if name in archive:
+            del archive[name]
         archive[name] = text
 
 def writeunique(archive, name, textfile, always_number=True, digits=2):
@@ -67,6 +73,35 @@ def writeunique(archive, name, textfile, always_number=True, digits=2):
             newname = name + '_{{:0{0}d}}'.format(digits).format(i)
         write(archive, newname, textfile)
         return newname
+
+def commandline_process_autoname(name):
+    """
+    For use in utilities where the name to save to is pre-determined.
+    Reads command line arguments for the text file, archive, and other options.
+    Writes to the archive.
+    """
+    parser = argparse.ArgumentParser(description="Write a text file to a HDF5 archive, uniquely")
+    parser.add_argument('text', help='Text file')
+    parser.add_argument('archive', help='HDF5 Archive')
+    parser.add_argument('-n','--nonumber', action='store_true',
+            help="Turns off automatic numbering when name is unique.")
+    parser.add_argument('-d','--digits', type=int, default=2,
+            help='Number of digits to format the unique index with (using leading zeros)')
+    parser.add_argument('-o','--overwrite', action='store_true',
+            help="Overwrites any entries at 'name' rather than making a unique name.")
+    parser.add_argument('-i','--index', type=int,
+            help="Index to append if overwriting.")
+    args = parser.parse_args()
+    
+    if args.overwrite:
+        if args.index is not None:
+            name = name + '_{{:0{0}d}}'.format(args.digits).format(args.index)
+        write(args.archive, name, args.text)
+        print("Saved to", name)
+    else:
+        newname = writeunique(args.archive, name, args.text,
+                always_number=(not args.nonumber), digits=args.digits)
+        print("Saved to", newname)
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="Write a text file to a HDF5 archive, uniquely")
