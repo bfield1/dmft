@@ -57,22 +57,43 @@ def writeunique(archive, name, textfile, always_number=True, digits=2):
         with h5py.File(archive, 'a') as A:
             return writeunique(A, name, textfile)
     else:
-        # If name doesn't already exist, can just write
-        if not always_number and name not in archive:
-            write(archive, name, textfile)
-            return name
-        # Initialise the index
-        if always_number:
-            i = 0
-        else:
-            i = 1
-        newname = name + '_{{:0{0}d}}'.format(digits).format(i)
-        # Keep incrementing the index until we get a unique name
-        while newname in archive:
-            i += 1
-            newname = name + '_{{:0{0}d}}'.format(digits).format(i)
+        newname = find_unique_name(archive, name, digits, always_number)
         write(archive, newname, textfile)
         return newname
+
+def find_unique_name(archive, name, digits, always_number=True):
+    """
+    Appends sequential indices to name to get a name not in archive.
+
+    Inputs:
+        archive - h5py.File or string pointing to a HDF5 archive; opens in append mode
+        name - string, path in HDF5 archive to write to.
+        digits - positive integer. Minimum number of digits to format the
+            unique index with. Puts in leading zeros.
+        always_number - Boolean. If true, will always append a unique index
+            even if 'name' is itself unique. (Useful for consistent formatting)
+    Output:
+        String - a unique name not found in archive, derived from name
+    """
+    # Open the Archive
+    if isinstance(archive, str):
+        with h5py.File(archive, 'r') as A:
+            return find_unique_name(A, name, digits, always_number)
+    # If name doesn't already exist, it is unique.
+    if not always_number and name not in archive:
+        return name
+    # Initialise the index
+    if always_number:
+        i = 0
+    else:
+        i = 1
+    newname = name + '_{{:0{0}d}}'.format(digits).format(i)
+    # Keep incrementing the index until we get a unique name
+    while newname in archive:
+        i += 1
+        newname = name + '_{{:0{0}d}}'.format(digits).format(i)
+    return newname
+
 
 def commandline_process_autoname(name):
     """

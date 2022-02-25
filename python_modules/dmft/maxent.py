@@ -15,6 +15,7 @@ import triqs.utility.mpi as mpi
 
 import dmft.version
 from dmft.utils import h5_write_full_path, h5_read_full_path
+from dmft.logging.writelog import find_unique_name
 
 def wrap_plot(func):
     @functools.wraps(func)
@@ -183,9 +184,30 @@ class MaxEnt():
         self.tm.set_G_tau_data(data.data_variable, data.G_orig)
         self.omega = data.omega
         return self
-    def write_metadata(self, archive):
-        """Writes version data to a predetermined location in a HDF5 archive"""
-        write_metadata(archive)
+    def write_metadata(self, archive, name=None):
+        """
+        Writes version data and parameters not saved in MaxEntResult to a HDF5 archive
+        
+        Inputs:
+            archive - HDF5 archive or string point to one. Will be written to.
+            name - Group to record metadata to.
+        """
+        # Write version data
+        if name is None:
+            write_metadata(archive, 'code')
+        else:
+            write_metadata(archive, name)
+        # Write the error we use (as that's also important)
+        if name is None:
+            name = 'params'
+        if hasattr(self, 'tm') and hasattr(self.tm, 'err'):
+            # We have an error value. self.tm.err is an array,
+            # but we might be able to simplify it as a scalar.
+            if self.tm.err.min() == self.tm.err.max():
+                err = self.tm.err[0]
+            else:
+                err = self.tm.err
+            h5_write_full_path(archive, err, name+'/maxent_error')
     # Now we want some plotting scripts to show the results
     @spectrum_plotter
     def plot_spectrum(self, choice=None, **kwargs):
@@ -423,6 +445,22 @@ def run_maxent(G_tau, err, alpha_mesh=None, omega_mesh=None, **kwargs):
         tm.omega = omega_mesh
     return tm.run()
 
+def get_last_loop(archive):
+    """
+    With a HDFArchive from dmft.dmft, finds the 'loop-XXX' with
+    the highest number.
+
+    Input: archive - HDFArchive, or path to a hdf5 file.
+    Output: string, the label/key
+    """
+    if not isinstance(archive, HDFArchive):
+        with HDFArchive(archive, 'r') as A:
+            return get_last_loop(A)
+    # We go over all the keys in archive which start with 'loop-'
+    # Then we sort them
+    # Then we take the last one
+    return sorted([k for k in archive if k[0:5] == 'loop-'])[-1]
+
 def get_last_G_tau(archive):
     """
     With a HDFArchive from dmft.dmft, with data from DMFT in 'loop-XXX' group,
@@ -438,22 +476,22 @@ def get_last_G_tau(archive):
     else:
         # Archive is a HDFArchive instance.
         # Extract the loop keys
-        keys = sorted([k for k in archive if k[0:5] == 'loop-'])
+        key = get_last_loop(archive)
         # The last key is the one we want
-        return archive[keys[-1]]['G_tau']
+        return archive[key]['G_tau']
 
-def write_metadata(archive):
+def write_metadata(archive, name='code'):
     """Records maxent version information to a HDF5 archive."""
-    h5_write_full_path(archive, me.version, 'code/triqs_maxent_version')
-    h5_write_full_path(archive, dmft.version.get_git_hash(), 'code/dmft_maxent_version')
+    h5_write_full_path(archive, me.version, name+'/triqs_maxent_version')
+    h5_write_full_path(archive, dmft.version.get_git_hash(), name+'/dmft_maxent_version')
 
 
 
 if __name__ == "__main__":
-    parser = argparse.ArgumentParser()
+    parser = argparse.ArgumentParser(description="Does a MaxEnt calculation ")
     parser.add_argument("input", help="Input archive containing G_tau from DMFT.")
-    parser.add_argument("output", help="Archive to write MaxEntResult to.")
-    parser.add_argument('-n','--name', default="maxent_result", help="Label for MaxEntResult in the output")
+    parser.add_argument("output", nargs="?",
+            help="Archive to write MaxEntResult to. Defaults in input, which I strongly recommend.")
     parser.add_argument('-e','--error', type=float, default=1e-4, help="Error in G_tau")
     parser.add_argument('--amin', type=float, help="Minimum alpha")
     parser.add_argument('--amax', type=float, help="Maximum alpha")
@@ -462,10 +500,25 @@ if __name__ == "__main__":
     parser.add_argument('--omax', type=float, help="Maximum omega")
     parser.add_argument('--nomega', type=int, help="Number of omega points")
     parser.add_argument('-b','--block', default='up', help="Block of G_tau to analytically continue.")
+    parser.add_argument('-d','--digits', type=int, default=2,
+            help="Number of digits (with leading zeros) for the results index.")
+    parser.add_argument('-n','--name', default='maxent/analysis',
+            help="Group to record MaxEnt results in (will get numbers appended).")
+    parser.add_argument('--nonumber', action='store_true',
+            help="Do not automatically add a number to the name if name already unique")
     args = parser.parse_args()
-
+    
+    if args.output is None:
+        args.output = args.input
+    
     # Load G_tau, taking one of the blocks.
     G_tau = get_last_G_tau(args.input)[args.block]
+    # Also record the dmft_loop that is from, for our records.
+    dmft_loop = get_last_loop(args.input)
+    # Let us go through the output and find a unique name to write to
+    name = find_unique_name(args.output, args.name, digits=args.digits, always_number=(not args.nonumber))
+    if mpi.is_master_node():
+        print("Writing MaxEnt data to",name)
     # Generate MaxEnt object with its alpha mesh
     maxent = MaxEnt(amin=args.amin, amax=args.amax, nalpha=args.nalpha)
     # Get the omega mesh
@@ -481,9 +534,10 @@ if __name__ == "__main__":
     maxent.set_error(args.error)
     # Record the metadata
     if mpi.is_master_node():
-        write_metadata(args.output)
+        maxent.write_metadata(args.output, name)
+        h5_write_full_path(args.output, dmft_loop, name+'/dmft_loop')
     # Run the MaxEnt calculation
     maxent.run()
     # Record the result
     if mpi.is_master_node():
-        maxent.save(args.output, args.name)
+        maxent.save(args.output, name+'/results')
