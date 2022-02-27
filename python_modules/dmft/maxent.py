@@ -506,38 +506,58 @@ if __name__ == "__main__":
             help="Group to record MaxEnt results in (will get numbers appended).")
     parser.add_argument('--nonumber', action='store_true',
             help="Do not automatically add a number to the name if name already unique")
+    parser.add_argument('-l','--loops', nargs='+', type=int,
+            help="Take G_tau from these loops and do MaxEnt on each of them (defaults to only the last one).")
     args = parser.parse_args()
     
     if args.output is None:
         args.output = args.input
     
-    # Load G_tau, taking one of the blocks.
-    G_tau = get_last_G_tau(args.input)[args.block]
-    # Also record the dmft_loop that is from, for our records.
-    dmft_loop = get_last_loop(args.input)
-    # Let us go through the output and find a unique name to write to
-    name = find_unique_name(args.output, args.name, digits=args.digits, always_number=(not args.nonumber))
-    if mpi.is_master_node():
-        print("Writing MaxEnt data to",name)
-    # Generate MaxEnt object with its alpha mesh
-    maxent = MaxEnt(amin=args.amin, amax=args.amax, nalpha=args.nalpha)
-    # Get the omega mesh
-    if args.omin is not None:
-        if args.omax is not None and args.nomega is not None:
-            maxent.generate_omega(args.omin, args.omax, args.nomega)
-        else:
+    # Get G_tau and the loop numbers
+    if args.loops is None:
+        # Take the last one
+        # Load G_tau, taking one of the blocks.
+        G_tau_list = [get_last_G_tau(args.input)[args.block]]
+        # Also record the dmft_loop that is from, for our records.
+        dmft_loop_list = [get_last_loop(args.input)]
+    else:
+        # Gather up all the G_tau's for the specified loops.
+        dmft_loop_list = []
+        G_tau_list = []
+        for loop in args.loops:
+            dmft_loop = 'loop-{:03d}'.format(loop)
+            try:
+                G_tau = h5_read_full_path(dmft_loop+'/G_tau')
+            except KeyError:
+                warn(dmft_loop+'/G_tau not found')
+            else:
+                dmft_loop_list.append(dmft_loop)
+                G_tau_list.append(G_tau)
+    for (G_tau, dmft_loop) in zip(G_tau_list, dmft_loop_list):
+        # Let us go through the output and find a unique name to write to
+        name = find_unique_name(args.output, args.name, digits=args.digits, always_number=(not args.nonumber))
+        if mpi.is_master_node():
+            print("Processing G_tau from", dmft_loop)
+            print("Writing MaxEnt data to", name)
+        # Generate MaxEnt object with its alpha mesh
+        maxent = MaxEnt(amin=args.amin, amax=args.amax, nalpha=args.nalpha)
+        # Get the omega mesh
+        if args.omin is not None:
+            if args.omax is not None and args.nomega is not None:
+                maxent.generate_omega(args.omin, args.omax, args.nomega)
+            else:
+                warn("Must specify all of omin, omax, and nomega; omega_mesh unset")
+        elif args.omax is not None or args.nomega is not None:
             warn("Must specify all of omin, omax, and nomega; omega_mesh unset")
-    elif args.omax is not None or args.nomega is not None:
-        warn("Must specify all of omin, omax, and nomega; omega_mesh unset")
-    # Set outher MaxEnt data
-    maxent.set_G_tau(G_tau)
-    maxent.set_error(args.error)
-    # Record the metadata
-    if mpi.is_master_node():
-        maxent.write_metadata(args.output, name)
-        h5_write_full_path(args.output, dmft_loop, name+'/dmft_loop')
-    # Run the MaxEnt calculation
-    maxent.run()
-    # Record the result
-    if mpi.is_master_node():
-        maxent.save(args.output, name+'/results')
+        # Set outher MaxEnt data
+        maxent.set_G_tau(G_tau)
+        maxent.set_error(args.error)
+        # Record the metadata
+        if mpi.is_master_node():
+            maxent.write_metadata(args.output, name)
+            h5_write_full_path(args.output, dmft_loop, name+'/dmft_loop')
+        # Run the MaxEnt calculation
+        maxent.run()
+        # Record the result
+        if mpi.is_master_node():
+            maxent.save(args.output, name+'/results')
