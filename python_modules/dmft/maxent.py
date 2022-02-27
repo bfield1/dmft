@@ -527,7 +527,7 @@ if __name__ == "__main__":
         for loop in args.loops:
             dmft_loop = 'loop-{:03d}'.format(loop)
             try:
-                G_tau = h5_read_full_path(dmft_loop+'/G_tau')
+                G_tau = h5_read_full_path(args.input, dmft_loop+'/G_tau')
             except KeyError:
                 warn(dmft_loop+'/G_tau not found')
             else:
