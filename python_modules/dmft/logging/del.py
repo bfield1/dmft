@@ -10,8 +10,8 @@ import h5py
 def delete(archive, name):
     """Deletes name from archive"""
     if isinstance(archive, str):
-        with h5py.File(archive, 'a'):
-            delete(archive, name)
+        with h5py.File(archive, 'a') as A:
+            delete(A, name)
     else:
         del archive[name]
 
