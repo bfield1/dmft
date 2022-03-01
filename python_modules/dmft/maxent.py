@@ -40,7 +40,7 @@ def spectrum_plotter(func):
     you to do any processing with the default ones besides ax.
     Also updates the docstring to append the plotter information.
     """
-    def plotter(*args, ax=None, emin=None, emax=None, amax=None, inplace=True, axeslabels=True, **kwargs):
+    def plotter(*args, ax=None, emin=None, emax=None, amax=None, inplace=True, axeslabels=True, title=None, **kwargs):
         """
         Plotter keyword arguments:
             ax - matplotlib Axes
@@ -49,6 +49,7 @@ def spectrum_plotter(func):
             inplace - Boolean, whether or not to plt.show(). If True, returned
                 objects have undefined behaviour.
             axeslabels - Boolean, whether or not to set the axes labels.
+            title - string, plot title.
         Outputs:
             Figure, Axes
         """
@@ -59,10 +60,11 @@ def spectrum_plotter(func):
             fig = ax.figure
         # Create the plots
         func(*args, **kwargs, ax=ax, emin=emin, emax=emax, amax=amax,
-                inplace=inplace, axeslabels=axeslabels)
+                inplace=inplace, axeslabels=axeslabels, title=title)
         # Adjust axes limits
         ax.set_xlim(emin, emax)
         ax.set_ylim(0, amax)
+        ax.set_title(title)
         # Draw axes labels
         if axeslabels:
             ax.set_xlabel(r'$\omega$')
@@ -323,7 +325,7 @@ class MaxEnt():
     def plot_metrics(self, chi2=True, linefit=True, curvature=True,
             probability=True, S=True, dS=True, mark_alphas=True,
             analyzer_list=['LineFitAnalyzer','Chi2CurvatureAnalyzer','ClassicAnalyzer','EntropyAnalyzer'],
-            inplace=True, tight_layout=True):
+            inplace=True, tight_layout=True, title=None):
         """
         Does a combined plot of all the relevant metrics.
 
@@ -339,6 +341,7 @@ class MaxEnt():
             analyzer_list - list of strings. Analyzers for mark_alpha.
             inplace - Boolean. Whether to plt.show()
             tight_layout - Boolean. Call fig.tight_layout()?
+            title - string, plot title
         Outputs:
             Figure, list of Axes.
         """
@@ -367,6 +370,8 @@ class MaxEnt():
         # Arrangement now contains only those plots we wish to plot
         # Record which one is on the bottom so we know where to draw alpha
         bottom = arrangement[-1][0][0]
+        # And record which one is the top so we know where to draw the title
+        top = arrangement[0][0][0]
         # Have a mapping from string to y-variable
         ydict = dict(curvature=self.data.analyzer_results['Chi2CurvatureAnalyzer']['curvature'],
                 probability=np.exp(self.data.probability-np.nanmax(self.data.probability)),
@@ -408,6 +413,8 @@ class MaxEnt():
             # Draw the x-axis label
             if row[0][0] == bottom:
                 ax.set_xlabel(r'$\alpha$')
+            if row[0][0] == top:
+                ax.set_title(title)
         # Annotate alphas
         if mark_alphas:
             for an in analyzer_list:
