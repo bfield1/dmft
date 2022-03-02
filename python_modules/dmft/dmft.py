@@ -5,11 +5,12 @@ Main solver for DMFT
 import argparse
 import warnings
 from subprocess import CalledProcessError
+import os.path
 
 import numpy as np
 
 # TRIQS libraries
-from h5 import HDFArchive
+from h5 import HDFArchive, HDFArchiveInert
 import triqs.gf as gf
 import triqs.operators as op
 import triqs.utility.mpi as mpi
@@ -107,7 +108,7 @@ class DMFTHubbard:
         if mpi.is_master_node():
             print("=================\nStarting DMFT loop\n====================")
             if prior_loops > 0:
-                print(f"Continuation job from {prior_loops} number of prior loops.")
+                print(f"Continuation job from {prior_loops} prior loops.")
         # If we aren't doing a continuation job, set our initial guess for the self-energy
         if prior_loops == 0:
             self.S.Sigma_iw << self.mu
@@ -335,8 +336,8 @@ if __name__ == "__main__":
     # The point is to be able to run regular calculations from the command line
     # without having to write a whole script.
     parser = argparse.ArgumentParser(description="Perform a DMFT calculation on the Hubbard model.")
-    parser.add_argument('-b','--beta', type=float, required=True, help="Inverse temperature.")
-    parser.add_argument('-u', type=float, required=True, help="Hubbard U")
+    parser.add_argument('-b','--beta', type=float, help="Inverse temperature.")
+    parser.add_argument('-u', type=float, help="Hubbard U")
     parser.add_argument('-m','--mu', type=float, default=0, help="Chemical potential")
     parser.add_argument('-n','--nloops', type=int, required=True, help="Number of DMFT loops.")
     parser.add_argument('-c','--cycles', type=int, default=200000, help="Number of QMC cycles.")
@@ -344,8 +345,9 @@ if __name__ == "__main__":
     parser.add_argument('-w','--warmup', type=int, default=10000, help="Number of warmup QMC cycles.")
     parser.add_argument('-a','--archive', help="Archive to record data to.")
     parser.add_argument('--nl', type=int, help="Number of Legendre polynomials to fit G_l in QMC (if any).")
+    parser.add_argument('-o','--overwrite', action='store_true', help="Forcibly overwrite the existing archive. May act a bit unpredictably from merging the data.")
 
-    subparsers = parser.add_subparsers(dest='lattice', help="Which lattice to solve.")
+    subparsers = parser.add_subparsers(dest='lattice', help="Which lattice to solve. Or run a continuation job (which ignores all parameters except --archive and --nloops).")
 
     kagome_parser = subparsers.add_parser('kagome')
     kagome_parser.add_argument('-t', type=float, help="Hopping", default=1)
@@ -358,10 +360,38 @@ if __name__ == "__main__":
     bethe_parser.add_argument('--offset', type=float, default=0, help="Offset")
     bethe_parser.add_argument('--bins', type=int, default=200, help="Number of DOS energy bins.")
     
-    args = parser.parse_args()
+    subparsers.add_parser('continue')
 
+    args = parser.parse_args()
+    
+    # Is this a continuation job?
+    continuation = args.lattice == 'continue'
+    changed = False
+    # Check the existence of the archive and if we should overwrite it.
+    if os.path.isfile(args.archive) and not args.overwrite and not continuation:
+        raise FileExistsError(f"The archive {args.archive} already exists. Maybe you want to --overwrite it or 'continue' an existing job?")
     # Initialise the solver.
-    if args.lattice == 'kagome':
+    if args.lattice == 'continue':
+        # While I could go to the extent to extracting t and offset from the 
+        # respective lattices, it isn't necessary, so I won't bother.
+        with warnings.catch_warnings(record=True) as w:
+            hubbard = DMFTHubbard.load(args.archive)
+            # Count if any EnvironmentWarnings were raised.
+            w2 = [warn for warn in w if issubclass(warn.category, EnvironmentWarning)]
+            if len(w2) > 0:
+                changed = True
+            else:
+                # There is another instance in which we want changed==True
+                # When we are already using a modified parameter set
+                with HDFArchive(args.archive, 'r') as A:
+                    loop_index, loop = DMFTHubbard._load_get_latest_loop(A)
+                    if 'params' in loop or 'code' in loop:
+                        changed = True
+                    # Close/un-bind the HDFArchive group
+                    # (otherwise cannot write to archive later)
+                    del loop
+    # No continuation job. Go ahead with existing lattices.
+    elif args.lattice == 'kagome':
         hubbard = DMFTHubbardKagome(beta=args.beta, u=args.u, mu=args.mu, nl=args.nl)
         hubbard.set_dos(t=args.t, offset=args.offset, nk=args.nk, bins=args.bins)
     elif args.lattice == 'bethe':
@@ -369,8 +399,10 @@ if __name__ == "__main__":
         hubbard.set_dos(t=args.t, offset=args.offset, bins=args.bins)
     else:
         raise ValueError(f"Unrecognised lattice {args.lattice}.")
-    hubbard.solver_params = dict(n_cycles=args.cycles, length_cycle=args.length, n_warmup_cycles=args.warmup)
-    if args.nl is not None:
-        hubbard.solver_params['measure_G_l'] = True
+    # If a new job, set the solver params.
+    if not continuation:
+        hubbard.solver_params = dict(n_cycles=args.cycles, length_cycle=args.length, n_warmup_cycles=args.warmup)
+        if args.nl is not None:
+            hubbard.solver_params['measure_G_l'] = True
     # Run the loop
-    hubbard.loop(args.nloops, archive=args.archive)
+    hubbard.loop(args.nloops, archive=args.archive, save_metadata_per_loop=changed)
