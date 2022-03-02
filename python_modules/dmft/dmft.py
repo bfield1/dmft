@@ -20,12 +20,23 @@ import triqs.version
 import dmft.dos
 import dmft.version
 
+# Hide the code line in the warnings
+# This line might come back to bite me if it affects the global scope
+# outside this module, though
+_original_showwarning = warnings.showwarning
+warnings.showwarning = lambda message, category, filename, lineno, file=None, line=None: _original_showwarning(message, category, filename, lineno, file, line='')
+
+class EnvironmentWarning(UserWarning):
+    """For when the execution environment is different to expected"""
+    pass
+
 class DMFTHubbard:
     """
     Sets up and performs DMFT loops in the Hubbard model.
     Also holds data, so good for analysis.
     """
     def __init__(self, beta, mu=None, solver_params={}, u=None, nl=None):
+        self.last_loop = -1
         self.beta = beta
         if nl is None:
             self.S = Solver(beta = beta, gf_struct = [('up',[0]), ('down',[0])])
@@ -78,7 +89,21 @@ class DMFTHubbard:
             SG['dmft_version'] = dmft.version.get_git_hash()
         except CalledProcessError:
             warnings.warn("Unable to get dmft_version")
-    def loop(self, n_loops, archive=None, prior_loops=0):
+    def loop(self, n_loops, archive=None, prior_loops=None, save_metadata_per_loop=False):
+        """
+        Perform DMFT loops, writing results for each loop to an archive
+
+        Inputs:
+            n_loops - positive integer, number of loops to do
+            archive - str pointing to HDF5 archive to write results to
+            prior_loops - positive integer, number of previous loops.
+                Defaults to what is internally recorded.
+                Used to properly label results in continuation jobs.
+            save_metadata_per_loop - Boolean. If True, metadata is saved with each loop.
+        Results are stored in the group loop-XXX, where XXX is the loop number.
+        """
+        if prior_loops is None:
+            prior_loops = self.last_loop + 1
         if mpi.is_master_node():
             print("=================\nStarting DMFT loop\n====================")
             if prior_loops > 0:
@@ -119,8 +144,117 @@ class DMFTHubbard:
                     SG['G_tau'] = self.S.G_tau
                     if 'measure_G_l' in self.solver_params and self.solver_params['measure_G_l']:
                         SG['G_l'] = self.S.G_l
+                    if save_metadata_per_loop:
+                        self.record_metadata(SG)
+            self.last_loop = i_loop + prior_loops
         if mpi.is_master_node():
             print("Finished DMFT loop.")
+    @classmethod
+    def load(cls, archive):
+        """
+        Load a DMFT instance from an archive.
+
+        You must have run record_metadata and loop to have the right data
+        recorded. Although record_metadata is done automatically.
+        """
+        if isinstance(archive, str):
+            with HDFArchive(archive, 'r') as A:
+                return cls.load(A)
+        # Get the latest loop
+        loop_index, loop = cls._load_get_latest_loop(archive)
+        params, code = cls._load_get_params_and_code(archive)
+        # Load the relevant data
+        beta = params['beta']
+        mu = params['mu']
+        solver_params = params['solver_params']
+        u = params['U']
+        try:
+            nl = params['nl']
+        except KeyError:
+            # I need to do this better, as I don't record nl yet.
+            nl = None
+        # Initialise
+        self = cls(beta, mu, solver_params, u, nl)
+        # DOS
+        self.rho = np.asarray(params['dos']['rho'])
+        self.energy = np.asarray(params['dos']['energy'])
+        self.delta = np.asarray(params['dos']['delta'])
+        # Set the latest loop
+        self.last_loop = int(loop_index[5:])
+        # Set the Green's functions
+        # Especially the self-energy; all else could be skipped if needed
+        self.S.Sigma_iw << loop['Sigma_iw']
+        try:
+            self.S.G_iw << loop['G_iw']
+        except KeyError:
+            pass
+        # G0_iw, G_tau are not writable.
+        try:
+            self.S.G_l << loop['G_l']
+        except KeyError:
+            pass
+        # Check if the environment has changed and throw appropriate warnings
+        try:
+            if mpi.size != params['MPI_ranks']:
+                warnings.warn("Original calculations were with {0} MPI ranks, but current environment has {1} ranks.".format(mpi.size, params['MPI_ranks']), EnvironmentWarning)
+        except KeyError:
+            warnings.warn("Unknown MPI ranks in loaded data.", EnvironmentWarning)
+        # Check versions
+        try:
+            if code['triqs_version'] != triqs.version.version:
+                warnings.warn("Original calculations were with TRIQS version {0}, but current environment uses TRIQS version {1}.".format(code['triqs_version'], triqs.version.version),
+                        EnvironmentWarning)
+        except KeyError:
+            warnings.warn("Unknown TRIQS version in loaded data.", EnvironmentWarning)
+        try:
+            if code['cthyb_version'] != triqs_cthyb.version.version:
+                warnings.warn("Original calculations were with CTHYB version {0}, but current environment uses CTHYB version {1}.".format(code['cthyb_version'], triqs_cthyb.version.version),
+                        EnvironmentWarning)
+        except KeyError:
+            warnings.warn("Unknown CTHYB version in loaded data.", EnvironmentWarning)
+        try:
+            current_dmft_version = dmft.version.get_git_hash()
+        except CalledProcessError:
+            warnings.warn("Unable to get dmft_version.", EnvironmentWarning)
+        else:
+            try:
+                if code['dmft_version'] != current_dmft_version:
+                    warnings.warn("Original calculations were with DMFT version {0}, but current environment uses DMFT version {1}.".format(code['dmft_version'], current_dmft_version), EnvironmentWarning)
+            except KeyError:
+                warnings.warn("Unknown DMFT version in loaded data.", EnvironmentWarning)
+        # And we're done
+        return self
+    @staticmethod
+    def _load_get_latest_loop(A):
+        """
+        Takes an already open archive. Gets latest loop index and group.
+        Helper for load
+        Input: open h5.HDFArchive
+        Outputs: loop_index (str), loop (HDFArchive group)
+        """
+        loop_index = sorted([s for s in A if s[0:5] == 'loop-'])[-1]
+        loop = A[loop_index]
+        return loop_index, loop
+    @classmethod
+    def _load_get_params_and_code(cls, A):
+        """
+        Takes an already open archive. Gets the most up-to-date metadata. Helper to load
+        Input: open h5.HDFArchive
+        Outputs: params, code (HDFArchive groups)
+        """
+        # Get the latest loop
+        loop_index, loop = cls._load_get_latest_loop(A)
+        # Check if there is metadata in the latest loop.
+        # Otherwise, use the default over-arching metadata.
+        if 'params' in loop:
+            params = loop['params']
+        else:
+            params = A['params']
+        if 'code' in loop:
+            code = loop['code']
+        else:
+            code = A['code']
+        return params, code
 
 class DMFTHubbardKagome(DMFTHubbard):
     def set_dos(self, t, offset, nk, bins=None, de=None):
@@ -137,6 +271,31 @@ class DMFTHubbardKagome(DMFTHubbard):
         SG['kagome_t'] = self.t
         SG['kagome_nk'] = self.nk
         SG['kagome_offset'] = self.offset
+    @classmethod
+    def load(cls, archive):
+        # Open the archive if not already
+        if isinstance(archive, str):
+            with HDFArchive(archive, 'r') as A:
+                return cls.load(A)
+        # Do all the base class loading
+        self = super().load(archive)
+        # Load the kagome metadata
+        params, code = cls._load_get_params_and_code(archive)
+        # No big deal if it isn't there, as it is only for records.
+        try:
+            self.t = params['kagome_t']
+        except KeyError:
+            pass
+        try:
+            self.nk = params['kagome_nk']
+        except KeyError:
+            pass
+        try:
+            self.offset = params['kagome_offset']
+        except KeyError:
+            pass
+        return self
+
 
 class DMFTHubbardBethe(DMFTHubbard):
     def set_dos(self, t, offset, bins=None, de=None):
@@ -150,6 +309,26 @@ class DMFTHubbardBethe(DMFTHubbard):
         SG = A['params']
         SG['bethe_t'] = self.t
         SG['bethe_offset'] = self.offset
+    @classmethod
+    def load(cls, archive):
+        # Open the archive if not already
+        if isinstance(archive, str):
+            with HDFArchive(archive, 'r') as A:
+                return cls.load(A)
+        # Do all the base class loading
+        self = super().load(archive)
+        # Load the kagome metadata
+        params, code = cls._load_get_params_and_code(archive)
+        # No big deal if it isn't there, as it is only for records.
+        try:
+            self.t = params['bethe_t']
+        except KeyError:
+            pass
+        try:
+            self.offset = params['bethe_offset']
+        except KeyError:
+            pass
+        return self
 
 if __name__ == "__main__":
     # Set up command line argument parser.
