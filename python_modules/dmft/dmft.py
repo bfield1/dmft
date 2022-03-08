@@ -369,7 +369,10 @@ if __name__ == "__main__":
     changed = False
     # Check the existence of the archive and if we should overwrite it.
     if os.path.isfile(args.archive) and not args.overwrite and not continuation:
-        raise FileExistsError(f"The archive {args.archive} already exists. Maybe you want to --overwrite it or 'continue' an existing job?")
+        # It might not have DMFT data in it, though, just some logs. So check
+        with HDFArchive(args.archive, 'r') as A:
+            if 'loop-000' in A:
+                raise FileExistsError(f"The archive {args.archive} already exists and contains DMFT data. Maybe you want to --overwrite it or 'continue' an existing job?")
     # Initialise the solver.
     if args.lattice == 'continue':
         # While I could go to the extent to extracting t and offset from the 
