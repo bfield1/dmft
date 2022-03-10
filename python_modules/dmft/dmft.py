@@ -90,7 +90,7 @@ class DMFTHubbard:
             SG['dmft_version'] = dmft.version.get_git_hash()
         except CalledProcessError:
             warnings.warn("Unable to get dmft_version")
-    def loop(self, n_loops, archive=None, prior_loops=None, save_metadata_per_loop=False):
+    def loop(self, n_loops, archive=None, prior_loops=None, save_metadata_per_loop=False, enforce_spins=True):
         """
         Perform DMFT loops, writing results for each loop to an archive
 
@@ -100,7 +100,10 @@ class DMFTHubbard:
             prior_loops - positive integer, number of previous loops.
                 Defaults to what is internally recorded.
                 Used to properly label results in continuation jobs.
-            save_metadata_per_loop - Boolean. If True, metadata is saved with each loop.
+            save_metadata_per_loop - Boolean. If True, metadata is saved with
+                each loop.
+            enforce_spins - Boolean. If True, forces spin up and down sectors
+                to be the same. Enhances numerical stability.
         Results are stored in the group loop-XXX, where XXX is the loop number.
         """
         if prior_loops is None:
@@ -122,15 +125,21 @@ class DMFTHubbard:
         for i_loop in range(n_loops):
             if mpi.is_master_node():
                 print(f"\n Loop number {i_loop+prior_loops} \n")
+            # Symmetrise the spin
+            if enforce_spin:
+                sigma = 0.5 * (self.S.Sigma_iw['up'] + self.S.Sigma_iw['down'])
+                sigma = dict(up=sigma, down=sigma)
+            else:
+                sigma = self.S.Sigma_iw
             # Do the self-consistency condition
             G.zero()
             for name, _ in G:
                 # Hilbert transform: an integral involving the DOS
                 for i in range(len(self.rho)):
-                    G[name] << G[name] + self.rho[i] * self.delta[i] * gf.inverse(gf.iOmega_n + self.mu - self.energy[i] - self.S.Sigma_iw[name])
+                    G[name] << G[name] + self.rho[i] * self.delta[i] * gf.inverse(gf.iOmega_n + self.mu - self.energy[i] - sigma[name])
             # Get the next impurity G0
             for name, g0 in self.S.G0_iw:
-                g0 << gf.inverse(gf.inverse(G[name]) + self.S.Sigma_iw[name])
+                g0 << gf.inverse(gf.inverse(G[name]) + sigma[name])
             # Run the solver
             self.S.solve(h_int=self.h_int, **self.solver_params)
             # record results

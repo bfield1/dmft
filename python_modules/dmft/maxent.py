@@ -563,6 +563,7 @@ if __name__ == "__main__":
         if mpi.is_master_node():
             maxent.write_metadata(args.output, name)
             h5_write_full_path(args.output, dmft_loop, name+'/dmft_loop')
+            h5_write_full_path(args.output, args.block, name+'/block')
         # Run the MaxEnt calculation
         maxent.run()
         # Record the result
