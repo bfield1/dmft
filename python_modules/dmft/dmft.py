@@ -126,7 +126,7 @@ class DMFTHubbard:
             if mpi.is_master_node():
                 print(f"\n Loop number {i_loop+prior_loops} \n")
             # Symmetrise the spin
-            if enforce_spin:
+            if enforce_spins:
                 sigma = 0.5 * (self.S.Sigma_iw['up'] + self.S.Sigma_iw['down'])
                 sigma = dict(up=sigma, down=sigma)
             else:
