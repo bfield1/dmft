@@ -1,4 +1,4 @@
-from h5 import HDFArchive
+from h5 import HDFArchive, HDFArchiveGroup
 
 def h5_write_full_path(archive, item, path):
     """
@@ -16,7 +16,8 @@ def h5_write_full_path(archive, item, path):
     if isinstance(path, str):
         path = path.split('/')
     # If archive is path to an archive, open it.
-    if not isinstance(archive, HDFArchive):
+    # HDFArchiveGroup is parent of HDFArchive and behaves the same
+    if not isinstance(archive, HDFArchiveGroup):
         with HDFArchive(archive, 'a') as A:
             h5_write_full_path(A, item, path)
     else:
@@ -49,7 +50,8 @@ def h5_read_full_path(archive, path):
     if isinstance(path, str):
         path = path.split('/')
     # If archive is path to an archive, open it.
-    if not isinstance(archive, HDFArchive):
+    # HDFArchiveGroup is parent of HDFArchive and behaves the same
+    if not isinstance(archive, HDFArchiveGroup):
         with HDFArchive(archive, 'r') as A:
             return h5_read_full_path(A, path)
     else:
