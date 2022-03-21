@@ -142,6 +142,24 @@ class DMFTHubbard:
                 g0 << gf.inverse(gf.inverse(G[name]) + sigma[name])
             # Run the solver
             self.S.solve(h_int=self.h_int, **self.solver_params)
+            # Symmetrise output
+            if enforce_spins:
+                g = self.S.G_iw['up'].copy()
+                g << (self.S.G_iw['up'] + self.S.G_iw['down'])/2
+                for name in ['up','down']:
+                    self.S.G_iw[name] << g
+                g << (self.S.Sigma_iw['up'] + self.S.Sigma_iw['down'])/2
+                for name in ['up','down']:
+                    self.S.Sigma_iw[name] << g
+                g = self.S.G_tau['up'].copy()
+                g << (self.S.G_tau['up'] + self.S.G_tau['down'])/2
+                for name in ['up','down']:
+                    self.S.G_tau[name] << g
+                if 'measure_G_l' in self.solver_params and self.solver_params['measure_G_l']:
+                    g = self.S.G_l['up'].copy()
+                    g << (self.S.G_l['up'] + self.S.G_l['down'])/2
+                    for name in ['up','down']:
+                        self.S.G_l[name] << g
             # record results
             if archive is not None and mpi.is_master_node():
                 with HDFArchive(archive,'a') as A:
