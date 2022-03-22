@@ -19,11 +19,13 @@ from dmft.logging.writelog import find_unique_name
 
 def wrap_plot(func):
     @functools.wraps(func)
-    def plotter(*args, ax=None, inplace=True, **kwargs):
+    def plotter(*args, ax=None, inplace=True, save=None, **kwargs):
         if ax is not None:
             plt.sca(ax)
         func(*args, **kwargs)
-        if inplace is True:
+        if save is not None:
+            plt.savefig(save)
+        if inplace:
             plt.show()
         return plt.gcf(), plt.gca()
     return plotter
@@ -40,7 +42,7 @@ def spectrum_plotter(func):
     you to do any processing with the default ones besides ax.
     Also updates the docstring to append the plotter information.
     """
-    def plotter(*args, ax=None, emin=None, emax=None, amax=None, inplace=True, axeslabels=True, title=None, **kwargs):
+    def plotter(*args, ax=None, emin=None, emax=None, amax=None, inplace=True, axeslabels=True, title=None, save=None, **kwargs):
         """
         Plotter keyword arguments:
             ax - matplotlib Axes
@@ -50,6 +52,7 @@ def spectrum_plotter(func):
                 objects have undefined behaviour.
             axeslabels - Boolean, whether or not to set the axes labels.
             title - string, plot title.
+            save - string, file to save plot to.
         Outputs:
             Figure, Axes
         """
@@ -69,6 +72,9 @@ def spectrum_plotter(func):
         if axeslabels:
             ax.set_xlabel(r'$\omega$')
             ax.set_ylabel(r'$A(\omega)$')
+        # Save the figure
+        if save is not None:
+            fig.savefig(save)
         # Show
         if inplace:
             plt.show()
@@ -325,7 +331,7 @@ class MaxEnt():
     def plot_metrics(self, chi2=True, linefit=True, curvature=True,
             probability=True, S=True, dS=True, mark_alphas=True,
             analyzer_list=['LineFitAnalyzer','Chi2CurvatureAnalyzer','ClassicAnalyzer','EntropyAnalyzer'],
-            inplace=True, tight_layout=True, title=None):
+            inplace=True, tight_layout=True, title=None, save=None):
         """
         Does a combined plot of all the relevant metrics.
 
@@ -342,6 +348,7 @@ class MaxEnt():
             inplace - Boolean. Whether to plt.show()
             tight_layout - Boolean. Call fig.tight_layout()?
             title - string, plot title
+            save - string, file to save plot to
         Outputs:
             Figure, list of Axes.
         """
@@ -426,6 +433,8 @@ class MaxEnt():
                         rotation='vertical')
         if tight_layout:
             fig.tight_layout()
+        if save is not None:
+            fig.savefig(save)
         if inplace:
             plt.show()
         return fig, axs

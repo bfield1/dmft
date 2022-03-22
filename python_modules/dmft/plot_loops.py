@@ -39,7 +39,6 @@ def wrap_plot(func):
     Then runs the plotting, passing ax.
     Then draws title, invokes tight layout, saves figure, shows, and returns.
     """
-    @functools.wraps(func)
     def plotter(*args, ax=None, inplace=True, title=None, save=None, tight=True, **kwargs):
         """
         Plotter keyword arguments:
@@ -196,9 +195,7 @@ def plot_spectrum(archive, block='up', choice='Chi2Curvature', ax=None, colorbar
         block - string, up or down, which Green's function block to use
         choice - string or integer, which alpha value to use for MaxEnt
             analytic continuation for the spectral function.
-        ax - Axes to plot to
         colorbar - Boolean, whether to draw a colorbar.
-    Outputs: Figure, Axes
     """
     # Load spectra
     spectra = get_maxent(archive, block)
@@ -221,7 +218,8 @@ def plot_spectrum(archive, block='up', choice='Chi2Curvature', ax=None, colorbar
         # Get normalisation such that integers are centred on the colors.
         norm = mcolors.Normalize(vmin=-0.5, vmax=loops-0.5)
         # Create the colorbar
-        fig.colorbar(cm.ScalarMappable(cmap=cmap, norm=norm), ax=ax)
+        fig.colorbar(cm.ScalarMappable(cmap=cmap, norm=norm),
+                ax=ax, label='Loop')
     # The plot has been created. We now return to the wrapper function.
 
 def quasiparticle_residue(sigma, block='up', index=0):
@@ -236,6 +234,12 @@ def quasiparticle_residue(sigma, block='up', index=0):
 def plot_quasiparticle_residue(archive, ax, block='up', index=0):
     """
     Plots the quasiparticle residue as a function of DMFT loop
+
+    Inputs:
+        archive - HDFArchive or str
+        ax - Matplotlib Axes
+        block - str (default 'up'), block of Sigma to read
+        index - integer (default 0), index within block to read
     """
     n_loops = count_loops(archive)
     Z = []
@@ -245,3 +249,80 @@ def plot_quasiparticle_residue(archive, ax, block='up', index=0):
     ax.plot(np.arange(n_loops), Z, '-o')
     ax.set_xlabel('Loop')
     ax.set_ylabel('Z')
+
+@wrap_plot
+@archive_reader
+def plot_density(archive, ax):
+    """
+    Plots the total density as a function of DMFT loop.
+
+    Inputs:
+        archive - HDFArchive or str
+        ax - Matplotlib Axes
+    """
+    n_loops = count_loops(archive)
+    density = []
+    for i in range(n_loops):
+        g = h5_read_full_path(archive, 'loop-{:03d}/G_iw'.format(i))
+        density.append(g.total_density().real)
+    ax.plot(np.arange(n_loops), density, '-o')
+    ax.set_xlabel('Loop')
+    ax.set_ylabel('Density')
+
+@wrap_plot
+@archive_reader
+def plot_greens_function(archive, gf_name='G_iw', ax=None, block='up', xmax=None, ymin=None, ymax=None, colorbar=True):
+    """
+    Plots a Green's function as a function of DMFT loop
+
+    Inputs:
+        archive - HDFArchive or str
+        gf_name - str (default G_iw), name of Green's function to read
+        block - str (default 'up'), block of Green's function to read
+        xmax, ymin, ymax - numbers (optional), axes limits
+        colorbar - Boolean (default True), whether to draw colorbars.
+    """
+    n_loops = count_loops(archive)
+    for i in range(n_loops):
+        # Load the Green's function
+        g = h5_read_full_path(archive, 'loop-{:03d}/{}'.format(i,gf_name))
+        # Invoke the _plot_ protocol to get plotting data
+        data = g[block]._plot_({})
+        # If this is the first loop, extract some metadata
+        if i == 0:
+            xlabel = data[0]['xlabel']
+            ylabel = data[0]['ylabel']
+        # I don't use triqs.plot.mpl_interface oplot because I want to contro
+        # the color.
+        # Plot real value (red)
+        ax.plot(data[0]['xdata'], data[0]['ydata'], color=(i/n_loops,0,0))
+        # Plot imaginary value (blue, dashed)
+        ax.plot(data[1]['xdata'], data[1]['ydata'], color=(0,0,i/n_loops), ls='--')
+    # Green's functions are symmetric or antisymmetric, so values less than 0
+    # can be ignored
+    ax.set_xlim(0, xmax)
+    ax.set_ylim(ymin, ymax)
+    # Draw the axes labels
+    ax.set_xlabel(xlabel)
+    ax.set_ylabel(ylabel)
+    # We need a double colorbar, because we have a real and imaginary component
+    if colorbar:
+        fig = ax.figure
+        # Create a discrete colormap for these shades of red
+        cmap1 = mcolors.ListedColormap([[i/n_loops,0,0] for i in range(n_loops)])
+        # And for the shades of blue
+        cmap2 = mcolors.ListedColormap([[0,0,i/n_loops] for i in range(n_loops)])
+        # Get normalisation such that integers are centred on the colors.
+        norm = mcolors.Normalize(vmin=-0.5, vmax=n_loops-0.5)
+        # Create the colorbars
+        clb = fig.colorbar(cm.ScalarMappable(cmap=cmap1, norm=norm),
+                ax=ax, label='Loop', pad=0.005)
+        clb.ax.set_title('Re')
+        # This second colorbar is on the inside. It doesn't need ticks as
+        # it will share the other colorbar's ticks.
+        # Note that if fraction is too small to fit the width of the colorbar
+        # the colorbar will shrink (because it is specified with a constant
+        # aspect ratio). This setting is fine for the default plot.
+        clb = fig.colorbar(cm.ScalarMappable(cmap=cmap2, norm=norm),
+                ax=ax, ticks=[], fraction=0.05, pad=0.01)
+        clb.ax.set_title('Im')
