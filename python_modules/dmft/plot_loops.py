@@ -7,6 +7,8 @@ from warnings import warn
 
 import numpy as np
 import matplotlib.pyplot as plt
+import matplotlib.cm as cm
+import matplotlib.colors as mcolors
 
 import triqs.gf # Needed to import the DMFT data
 from h5 import HDFArchive
@@ -14,6 +16,7 @@ import triqs_maxent as me # Needed to import the Maxent data
 import triqs.utility.mpi as mpi
 
 from dmft.maxent import MaxEnt
+from dmft.utils import h5_read_full_path
 
 def archive_reader(func):
     """
@@ -28,6 +31,55 @@ def archive_reader(func):
         else:
             return func(archive, *args, **kwargs)
     return reader
+
+def wrap_plot(func):
+    """
+    Wrapper for plotting routines, with boilerplate pre and post processing.
+    Sets up the Figure and Axes.
+    Then runs the plotting, passing ax.
+    Then draws title, invokes tight layout, saves figure, shows, and returns.
+    """
+    @functools.wraps(func)
+    def plotter(*args, ax=None, inplace=True, title=None, save=None, tight=True, **kwargs):
+        """
+        Plotter keyword arguments:
+            ax - matplotlib Axes
+            inplace - Boolean, whether or not to plt.show(). If True, returned
+                objects have undefined behaviour.
+            title - string, plot title.
+            save - string, file to save to.
+            tight - Boolean, if True call fig.tight_layout()
+        Outputs:
+            Figure, Axes
+        """
+        # Generate the Axes
+        if ax is None:
+            fig, ax = plt.subplots()
+        else:
+            plt.sca(ax)
+            fig = ax.figure
+        # Do the plotting
+        func(*args, ax=ax, **kwargs)
+        # Write the title
+        if title is not None:
+            ax.set_title(title)
+        # Tighten the layout
+        if tight:
+            fig.tight_layout()
+        # Save the figure
+        if save is not None:
+            fig.savefig(save)
+        # Show the plot
+        if inplace:
+            plt.show()
+        # Return Figure and Axes
+        return fig, ax
+    # Update the documentation to fit the original function
+    # As I want to concatenate docstrings, I need to do it
+    # manually rather than using functools.wrap
+    plotter.__doc__ = func.__doc__ + plotter.__doc__
+    plotter.__name__ = func.__name__
+    return plotter
 
 @archive_reader
 def count_loops(archive):
@@ -134,22 +186,62 @@ def get_maxent(archive, block='up'):
             mylist[entry['loop']] = entry['maxent']
         return mylist
 
+@wrap_plot
 @archive_reader
-def plot_spectrum(archive, block='up', choice='Chi2Curvature', ax=None, inplace=True, title=None):
+def plot_spectrum(archive, block='up', choice='Chi2Curvature', ax=None, colorbar=True):
+    """
+    Plots the spectral function as a function of DMFT loop
+
+    Inputs: archive - HDFArchive or string pointing to the archive
+        block - string, up or down, which Green's function block to use
+        choice - string or integer, which alpha value to use for MaxEnt
+            analytic continuation for the spectral function.
+        ax - Axes to plot to
+        colorbar - Boolean, whether to draw a colorbar.
+    Outputs: Figure, Axes
+    """
     # Load spectra
     spectra = get_maxent(archive, block)
     loops = len(spectra)
-    # Create Axes
-    if ax is None:
-        fig, ax = plt.subplots()
-    else:
-        fig = ax.figure
+    # Plot spectra
     for i in range(loops):
         if spectra[i] is not None:
             spectra[i].plot_spectrum(choice=choice, ax=ax, inplace=False)
+            # Colour the line we just plotted a shade of red.
             ax.get_lines()[-1].set_color([i/loops, 0, 0])
-    if title is not None:
-        ax.set_title(title)
-    if inplace:
-        plt.show()
-    return fig, ax
+    # Adjust the maximum of the plot, because it defaults to the ylim
+    # of the first spectrum plotted.
+    ax.autoscale()
+    ax.set_ylim(bottom=0)
+    # Create the colorbar
+    if colorbar:
+        fig = ax.figure
+        # Create a discrete colormap for these shades of red
+        cmap = mcolors.ListedColormap([[i/loops,0,0] for i in range(loops)])
+        # Get normalisation such that integers are centred on the colors.
+        norm = mcolors.Normalize(vmin=-0.5, vmax=loops-0.5)
+        # Create the colorbar
+        fig.colorbar(cm.ScalarMappable(cmap=cmap, norm=norm), ax=ax)
+    # The plot has been created. We now return to the wrapper function.
+
+def quasiparticle_residue(sigma, block='up', index=0):
+    """Returns the quasiparticle residue from the (imaginary frequency) self-energy"""
+    # Extract beta
+    beta = sigma[block].mesh.beta
+    # Calculate quasiparticle residue
+    return 1/(1 - sigma[block](0)[0,0].imag * beta/np.pi)
+
+@wrap_plot
+@archive_reader
+def plot_quasiparticle_residue(archive, ax, block='up', index=0):
+    """
+    Plots the quasiparticle residue as a function of DMFT loop
+    """
+    n_loops = count_loops(archive)
+    Z = []
+    for i in range(n_loops):
+        sigma = h5_read_full_path(archive, 'loop-{:03d}/Sigma_iw'.format(i))
+        Z.append(quasiparticle_residue(sigma, block, index))
+    ax.plot(np.arange(n_loops), Z, '-o')
+    ax.set_xlabel('Loop')
+    ax.set_ylabel('Z')
