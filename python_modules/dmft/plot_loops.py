@@ -16,21 +16,9 @@ import triqs_maxent as me # Needed to import the Maxent data
 import triqs.utility.mpi as mpi
 
 from dmft.maxent import MaxEnt
-from dmft.utils import h5_read_full_path
+from dmft.utils import h5_read_full_path, archive_reader
+from dmft.measure import quasiparticle_residue
 
-def archive_reader(func):
-    """
-    For a function which reads a HDFArchive as the first argument,
-    it opens the archive if a string was passed.
-    """
-    @functools.wraps(func)
-    def reader(archive, *args, **kwargs):
-        if isinstance(archive, str):
-            with HDFArchive(archive, 'r') as A:
-                return func(A, *args, **kwargs)
-        else:
-            return func(archive, *args, **kwargs)
-    return reader
 
 def wrap_plot(func):
     """
@@ -203,9 +191,10 @@ def plot_spectrum(archive, block='up', choice='Chi2Curvature', ax=None, colorbar
     # Plot spectra
     for i in range(loops):
         if spectra[i] is not None:
-            spectra[i].plot_spectrum(choice=choice, ax=ax, inplace=False)
-            # Colour the line we just plotted a shade of red.
-            ax.get_lines()[-1].set_color([i/loops, 0, 0])
+            spectra[i].plot_spectrum(choice=choice, ax=ax, inplace=False,
+                    color=[i/max(loops-1,1), 0, 0])
+            # Colour the line a shade of red.
+            # i goes from 0 to loops-1. If loops is 1, use max to not do 1/0.
     # Adjust the maximum of the plot, because it defaults to the ylim
     # of the first spectrum plotted.
     ax.autoscale()
@@ -214,7 +203,7 @@ def plot_spectrum(archive, block='up', choice='Chi2Curvature', ax=None, colorbar
     if colorbar:
         fig = ax.figure
         # Create a discrete colormap for these shades of red
-        cmap = mcolors.ListedColormap([[i/loops,0,0] for i in range(loops)])
+        cmap = mcolors.ListedColormap([[i/max(loops-1,1),0,0] for i in range(loops)])
         # Get normalisation such that integers are centred on the colors.
         norm = mcolors.Normalize(vmin=-0.5, vmax=loops-0.5)
         # Create the colorbar
@@ -222,12 +211,6 @@ def plot_spectrum(archive, block='up', choice='Chi2Curvature', ax=None, colorbar
                 ax=ax, label='Loop')
     # The plot has been created. We now return to the wrapper function.
 
-def quasiparticle_residue(sigma, block='up', index=0):
-    """Returns the quasiparticle residue from the (imaginary frequency) self-energy"""
-    # Extract beta
-    beta = sigma[block].mesh.beta
-    # Calculate quasiparticle residue
-    return 1/(1 - sigma[block](0)[0,0].imag * beta/np.pi)
 
 @wrap_plot
 @archive_reader
@@ -295,9 +278,12 @@ def plot_greens_function(archive, gf_name='G_iw', ax=None, block='up', xmax=None
         # I don't use triqs.plot.mpl_interface oplot because I want to contro
         # the color.
         # Plot real value (red)
-        ax.plot(data[0]['xdata'], data[0]['ydata'], color=(i/n_loops,0,0))
+        # i goes from 0 to loops-1. If loops is 1, use max to not do 1/0.
+        ax.plot(data[0]['xdata'], data[0]['ydata'],
+                color=(i/max(n_loops-1,1),0,0))
         # Plot imaginary value (blue, dashed)
-        ax.plot(data[1]['xdata'], data[1]['ydata'], color=(0,0,i/n_loops), ls='--')
+        ax.plot(data[1]['xdata'], data[1]['ydata'],
+                color=(0,0,i/max(n_loops-1,1)), ls='--')
     # Green's functions are symmetric or antisymmetric, so values less than 0
     # can be ignored
     ax.set_xlim(0, xmax)
@@ -309,9 +295,11 @@ def plot_greens_function(archive, gf_name='G_iw', ax=None, block='up', xmax=None
     if colorbar:
         fig = ax.figure
         # Create a discrete colormap for these shades of red
-        cmap1 = mcolors.ListedColormap([[i/n_loops,0,0] for i in range(n_loops)])
+        cmap1 = mcolors.ListedColormap(
+                [[i/max(n_loops-1,1),0,0] for i in range(n_loops)])
         # And for the shades of blue
-        cmap2 = mcolors.ListedColormap([[0,0,i/n_loops] for i in range(n_loops)])
+        cmap2 = mcolors.ListedColormap(
+                [[0,0,i/max(n_loops-1,1)] for i in range(n_loops)])
         # Get normalisation such that integers are centred on the colors.
         norm = mcolors.Normalize(vmin=-0.5, vmax=n_loops-0.5)
         # Create the colorbars

@@ -14,10 +14,17 @@ import triqs_maxent as me
 import triqs.utility.mpi as mpi
 
 import dmft.version
-from dmft.utils import h5_write_full_path, h5_read_full_path
+from dmft.utils import h5_write_full_path, h5_read_full_path, get_last_loop
 from dmft.logging.writelog import find_unique_name
 
 def wrap_plot(func):
+    """
+    Boilerplate for a plotting function.
+    Sets the Axes if provided. Saves and displaces the figure according
+    to arguments. Returns Figure and Axes.
+    Assumes that func will by some means grab the current axes or generate
+    them if they do not exist, typically by calling plt.plot.
+    """
     @functools.wraps(func)
     def plotter(*args, ax=None, inplace=True, save=None, **kwargs):
         if ax is not None:
@@ -176,9 +183,12 @@ class MaxEnt():
         """
         h5_write_full_path(archive, self.data, path)
     @classmethod
-    def load(cls, archive, path):
+    def load(cls, archive, path=None):
         """
         Reads saved MaxEnt results from path in a HDF5 archive
+
+        If path is not provided, assumes default names and loads the latest
+        MaxEnt (path="maxent/analysis_??/results"
 
         Compatible with any triqs_maxent.MaxEntResultData, not just those
         created by the class.
@@ -186,7 +196,10 @@ class MaxEnt():
         Also does not set self.results, which is a MaxEntResult object,
         as only MaxEntResultData is saved. But we only need the latter.
         """
-        data = h5_read_full_path(archive, path)
+        if path is not None:
+            data = h5_read_full_path(archive, path)
+        else:
+            data = get_last_maxent(archive)
         self = cls(alpha_mesh=data.alpha)
         self.data = data
         self.tm.set_G_tau_data(data.data_variable, data.G_orig)
@@ -218,7 +231,7 @@ class MaxEnt():
             h5_write_full_path(archive, err, name+'/maxent_error')
     # Now we want some plotting scripts to show the results
     @spectrum_plotter
-    def plot_spectrum(self, choice=None, **kwargs):
+    def plot_spectrum(self, choice=None, color=None, **kwargs):
         """
         Plots the spectral function
 
@@ -227,6 +240,7 @@ class MaxEnt():
                 If string, is an analyzer name (possibly with the trailing
                 "Analyzer" dropped).
                 If unspecified, reverts to the default analyzer.
+            color - color argument for matplotlib.pyplot.plot
         """
         ax = kwargs['ax']
         # Parse the choice
@@ -243,7 +257,7 @@ class MaxEnt():
             # Assume choice is an integer.
             A = self.data.A[choice]
         # Plot
-        ax.plot(self.omega, A)
+        ax.plot(self.omega, A, c=color)
     #
     @spectrum_plotter
     def plot_spectrum_fit_comparison(self, probability=False, legend=True, **kwargs):
@@ -461,21 +475,6 @@ def run_maxent(G_tau, err, alpha_mesh=None, omega_mesh=None, **kwargs):
         tm.omega = omega_mesh
     return tm.run()
 
-def get_last_loop(archive):
-    """
-    With a HDFArchive from dmft.dmft, finds the 'loop-XXX' with
-    the highest number.
-
-    Input: archive - HDFArchive, or path to a hdf5 file.
-    Output: string, the label/key
-    """
-    if not isinstance(archive, HDFArchive):
-        with HDFArchive(archive, 'r') as A:
-            return get_last_loop(A)
-    # We go over all the keys in archive which start with 'loop-'
-    # Then we sort them
-    # Then we take the last one
-    return sorted([k for k in archive if k[0:5] == 'loop-'])[-1]
 
 def get_last_G_tau(archive):
     """
@@ -486,7 +485,7 @@ def get_last_G_tau(archive):
     Output: saved G_tau, which is likely BlockGf of GfImTime.
     """
     # If archive is path to an archive, open it.
-    if not isinstance(archive, HDFArchive):
+    if isinstance(archive, str):
         with HDFArchive(archive, 'r') as A:
             return get_last_G_tau(A)
     else:
@@ -495,6 +494,36 @@ def get_last_G_tau(archive):
         key = get_last_loop(archive)
         # The last key is the one we want
         return archive[key]['G_tau']
+
+def get_last_maxent(archive):
+    """
+    With a HDFArchive from dmft.maxent, loads the last maxent analysis to be
+    written.
+    IF YOU WANT A MaxEnt instance from dmft.maxent, call MaxEnt.load without
+    a path argument.
+    
+    Input: archive - HDFArchive, or path to a hdf5 file.
+    Output: saved MaxEntResultsData object
+    """
+    # If archive is path to an archive, open it.
+    if isinstance(archive, str):
+        with HDFArchive(archive, 'r') as A:
+            return get_last_maxent(A)
+    # Open the maxent group
+    SG = archive['maxent']
+    # Find the last analysis
+    # Lexicographical sort of keys
+    anlist = sorted([k for k in SG if k[0:9] == 'analysis_'])
+    # I set two digits for analysis. If no three-digit results, sorting is fine
+    if len(anlist) <= 100:
+        key = anlist[-1]
+    else:
+        # Otherwise, cut the shorter ones and take the latest three-digit result
+        key = [k for k in anlist if len(k) > 11][-1]
+        # I assume that we have no more than a thousand analyses.
+    # Return the results
+    return SG[key]['results']
+
 
 def write_metadata(archive, name='code'):
     """Records maxent version information to a HDF5 archive."""
