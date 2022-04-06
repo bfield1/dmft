@@ -11,7 +11,6 @@ import matplotlib.cm as cm
 import matplotlib.colors as mcolors
 
 import triqs.gf # Needed to import the DMFT data
-from h5 import HDFArchive
 import triqs_maxent as me # Needed to import the Maxent data
 import triqs.utility.mpi as mpi
 

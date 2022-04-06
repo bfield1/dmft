@@ -230,19 +230,18 @@ class MaxEnt():
                 err = self.tm.err
             h5_write_full_path(archive, err, name+'/maxent_error')
     # Now we want some plotting scripts to show the results
-    @spectrum_plotter
-    def plot_spectrum(self, choice=None, color=None, **kwargs):
+    def get_spectrum(self, choice=None):
         """
-        Plots the spectral function
+        Returns the spectral function
 
-        Inputs:
+        Input:
             choice - integer or string. If integer, is an alpha index.
                 If string, is an analyzer name (possibly with the trailing
                 "Analyzer" dropped).
                 If unspecified, reverts to the default analyzer.
-            color - color argument for matplotlib.pyplot.plot
+        Output:
+            A 1D numeric array, the spectral function.
         """
-        ax = kwargs['ax']
         # Parse the choice
         if choice is None:
             # Default
@@ -256,6 +255,22 @@ class MaxEnt():
         else:
             # Assume choice is an integer.
             A = self.data.A[choice]
+        return A
+    #
+    @spectrum_plotter
+    def plot_spectrum(self, choice=None, color=None, **kwargs):
+        """
+        Plots the spectral function
+
+        Inputs:
+            choice - integer or string. If integer, is an alpha index.
+                If string, is an analyzer name (possibly with the trailing
+                "Analyzer" dropped).
+                If unspecified, reverts to the default analyzer.
+            color - color argument for matplotlib.pyplot.plot
+        """
+        ax = kwargs['ax']
+        A = self.get_spectrum(choice)
         # Plot
         ax.plot(self.omega, A, c=color)
     #
