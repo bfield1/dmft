@@ -28,7 +28,7 @@ def quasiparticle_residue_from_archive(archive, loop=None, block='up', index=0):
         loop = get_last_loop(archive)
     # If loop is an integer, convert to string
     elif isinstance(loop, int):
-        loop = 'loop-{:d03}'.format(loop)
+        loop = 'loop-{:03d}'.format(loop)
     # Implied is the possibility of passing loop as an explicit string
     # Load Sigma_iw, the self-energy
     sigma = archive[loop]['Sigma_iw']
@@ -46,7 +46,7 @@ def density_from_archive(archive, loop=None):
         loop = get_last_loop(archive)
     # If loop is an integer, convert to string
     elif isinstance(loop, int):
-        loop = 'loop-{:d03}'.format(loop)
+        loop = 'loop-{:03d}'.format(loop)
     # Implied is the possibility of passing loop as an explicit string
     # Load G_iw, the Green's function
     G = archive[loop]['G_iw']
