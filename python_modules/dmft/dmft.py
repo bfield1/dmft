@@ -172,6 +172,7 @@ class DMFTHubbard:
                     SG['G_tau'] = self.S.G_tau
                     if 'measure_G_l' in self.solver_params and self.solver_params['measure_G_l']:
                         SG['G_l'] = self.S.G_l
+                    SG['average_sign'] = self.S.average_sign
                     if save_metadata_per_loop:
                         self.record_metadata(SG)
             self.last_loop = i_loop + prior_loops
