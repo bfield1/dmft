@@ -128,4 +128,63 @@ def plot_spectrum(archive_list, colors, vals=None, choice='Chi2Curvature', ax=No
         fig.colorbar(cm.ScalarMappable(cmap=cmap, norm=norm), ax=ax,
                 label=legendlabel)
 
-    
+@wrap_plot
+def plot_density(archive_list, vals=None, ax=None, color=None, xlabel='', marker='o', ymin=0, ymax=2, halfline=True):
+    """
+    Plots the density from different archives in a scatter plot
+
+    Inputs:
+        archive_list - list of strs pointing to h5 archives written by dmft
+        vals - optional, list of numbers of same length as archive_list.
+            Used for x-axis in plotting.
+        color - matplotlib colour. Optional.
+        xlabel - string. Label for x-axis. Default ''
+        marker - matplotlib marker specification. Default 'o'
+        ymin - number. Default 0
+        ymax - number. Default 2
+        halfline - Boolean. Draw a horizontal line at density=1? Default True.
+    """
+    # Verify that lengths match
+    if vals is not None and len(archive_list) != len(vals):
+        raise ValueError("Length of archive_list and vals must match")
+    # Load the density
+    densities = [density_from_archive(A) for A in archive_list]
+    # If vals is None, assume we want sequential integers
+    if vals is None:
+        vals = np.arange(0,len(archive_list))
+    # Plot
+    ax.plot(vals, densities, linestyle='None', color=color, marker=marker)
+    ax.set_ylim(ymin, ymax)
+    if halfline:
+        ax.axhline(1, color='k', linewidth=1)
+    ax.set_xlabel(xlabel)
+    ax.set_ylabel(r'Density $n$')
+
+@wrap_plot
+def plot_quasiparticle_residue(archive_list, vals=None, ax=None, color=None, xlabel='', marker='o', ymin=0, ymax=1):
+    """
+    Plots the quasiparticle residue from different archives in a scatter plot
+
+    Inputs:
+        archive_list - list of strs pointing to h5 archives written by dmft
+        vals - optional, list of numbers of same length as archive_list.
+            Used for x-axis in plotting.
+        color - matplotlib colour. Optional.
+        xlabel - string. Label for x-axis. Default ''
+        marker - matplotlib marker specification. Default 'o'
+        ymin - number. Default 0
+        ymax - number. Default 1
+    """
+    # Verify that lengths match
+    if vals is not None and len(archive_list) != len(vals):
+        raise ValueError("Length of archive_list and vals must match")
+    # Load the Z
+    Zs = [quasiparticle_residue_from_archive(A) for A in archive_list]
+    # If vals is None, assume we want sequential integers
+    if vals is None:
+        vals = np.arange(0,len(archive_list))
+    # Plot
+    ax.plot(vals, Zs, linestyle='None', color=color, marker=marker)
+    ax.set_ylim(ymin, ymax)
+    ax.set_xlabel(xlabel)
+    ax.set_ylabel(r'Quasiparticle Residue $Z$')
