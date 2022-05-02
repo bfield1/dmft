@@ -3,12 +3,14 @@ Functions for measuring DMFT quantities.
 """
 
 import numpy as np
+import matplotlib.pyplot as plt
 import h5py
 
 import triqs.gf
 
 from dmft.utils import archive_reader, h5_read_full_path, get_last_loop
 import dmft.logging.cat
+from dmft.maxent import MaxEnt
 
 def quasiparticle_residue(sigma, block='up', index=0):
     """Returns the quasiparticle residue from the (imaginary frequency) self-energy"""
@@ -101,3 +103,95 @@ def average_sign_from_archive(archive):
         raise ValueError("Could not find Average sign")
     # Parse the number. It is space delimited
     return float(sign_line.split()[-1])
+
+def band_edges_from_archive(archive, threshold=0.001, choice='Chi2Curvature'):
+    """
+    Get the edges of the band gap from the spectrum.
+
+    Inputs:
+        archive - str pointing to h5 archive
+        threshold - number, below which we treat spectrum as 0
+        choice - str or int, which MaxEnt alpha/analyzer to use.
+    Output:
+        bandmin, bandmax - two numbers, bottom and top of the band gap
+    """
+    result = MaxEnt.load(archive)
+    return band_edges(result.omega, result.get_spectrum(choice), threshold)
+
+def band_edges(omega, spectrum, threshold=0.001):
+    """
+    Get the edges of the band gap from the spectrum.
+
+    Inputs:
+        omega - array of energies
+        spectrum - array of spectral function values at corresponding omega
+        threshold - number, below which we treat spectrum as 0
+    Output:
+        bandmin, bandmax - two numbers, bottom and top of the band gap
+    """
+    mask = (omega >= 0) & (spectrum > threshold)
+    if len(omega[mask]) == 0:
+        top = omega[-1]
+    else:
+        top = omega[mask][0]
+    mask = (omega <= 0) & (spectrum > threshold)
+    if len(omega[mask]) == 0:
+        bottom = omega[0]
+    else:
+        bottom = omega[mask][-1]
+    return bottom, top
+
+def band_gap(omega, spectrum, threshold=0.001):
+    """
+    Gets the band gap
+
+    Inputs:
+        omega - array of energies
+        spectrum - array of spectral function values at corresponding omega
+        threshold - number, below which we treat spectrum as 0
+    Output:
+        gap - number, the band gap
+    """
+    bottom, top = band_edges(omega, spectrum, threshold)
+    return top - bottom
+
+def band_gap_from_archive(archive, threshold=0.001, choice='Chi2Curvature'):
+    """
+    Get the band gap from an archive.
+
+    Inputs:
+        archive - str pointing to h5 archive
+        threshold - number, below which we treat spectrum as 0
+        choice - str or int, which MaxEnt alpha/analyzer to use.
+    Output:
+        gap - number, the band gap
+    """
+    result = MaxEnt.load(archive)
+    return band_gap(result.omega, result.get_spectrum(choice), threshold)
+
+def plot_band_edges(omega, spectrum, threshold=0.001):
+    """
+    Plots band edges of a spectrum with the spectrum.
+    Intended as a quick diagnostic.
+    Inputs:
+        omega - array of energies
+        spectrum - array of spectral function values at corresponding omega
+        threshold - number, below which we treat spectrum as 0
+    """
+    bottom, top = band_edges(omega, spectrum, threshold)
+    plt.plot(omega, spectrum)
+    plt.axvline(bottom, c='k', lw=1)
+    plt.axvline(top, c='k', lw=1)
+    plt.show()
+
+def plot_band_edges_from_archive(archive, threshold=0.001, choice='Chi2Curvature'):
+    """
+    Plots band edges of a spectrum with the spectrum.
+    Intended as a quick diagnostic.
+    Inputs:
+        archive - str pointing to h5 archive
+        threshold - number, below which we treat spectrum as 0
+        choice - str or int, which MaxEnt alpha/analyzer to use.
+    """
+    result = MaxEnt.load(archive)
+    return plot_band_edges(result.omega, result.get_spectrum(choice), threshold)

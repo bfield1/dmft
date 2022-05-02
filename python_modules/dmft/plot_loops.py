@@ -174,7 +174,7 @@ def get_maxent(archive, block='up'):
 
 @wrap_plot
 @archive_reader
-def plot_spectrum(archive, block='up', choice='Chi2Curvature', ax=None, colorbar=True):
+def plot_spectrum(archive, block='up', choice='Chi2Curvature', ax=None, colorbar=True, trim=True):
     """
     Plots the spectral function as a function of DMFT loop
 
@@ -183,9 +183,20 @@ def plot_spectrum(archive, block='up', choice='Chi2Curvature', ax=None, colorbar
         choice - string or integer, which alpha value to use for MaxEnt
             analytic continuation for the spectral function.
         colorbar - Boolean, whether to draw a colorbar.
+        trim - Boolean (default True), whether to trim the loops range if it
+            does not extend to the ends of the array
     """
     # Load spectra
     spectra = get_maxent(archive, block)
+    minloop = 0
+    if trim:
+        # Trim out leading nans
+        while len(spectra) > 0 and spectra[0] is None:
+            del spectra[0]
+            minloop += 1
+        # Trim trailing nans
+        while len(spectra) > 0 and spectra[-1] is None:
+            del spectra[-1]
     loops = len(spectra)
     # Plot spectra
     for i in range(loops):
@@ -204,7 +215,7 @@ def plot_spectrum(archive, block='up', choice='Chi2Curvature', ax=None, colorbar
         # Create a discrete colormap for these shades of red
         cmap = mcolors.ListedColormap([[i/max(loops-1,1),0,0] for i in range(loops)])
         # Get normalisation such that integers are centred on the colors.
-        norm = mcolors.Normalize(vmin=-0.5, vmax=loops-0.5)
+        norm = mcolors.Normalize(vmin=minloop-0.5, vmax=minloop+loops-0.5)
         # Create the colorbar
         fig.colorbar(cm.ScalarMappable(cmap=cmap, norm=norm),
                 ax=ax, label='Loop')
