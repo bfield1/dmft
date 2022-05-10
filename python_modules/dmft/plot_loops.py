@@ -264,7 +264,7 @@ def plot_density(archive, ax):
 
 @wrap_plot
 @archive_reader
-def plot_greens_function(archive, gf_name='G_iw', ax=None, block='up', xmax=None, ymin=None, ymax=None, colorbar=True):
+def plot_greens_function(archive, gf_name='G_iw', ax=None, block='up', xmax=None, ymin=None, ymax=None, colorbar=True, indexL=0, indexR=0):
     """
     Plots a Green's function as a function of DMFT loop
 
@@ -274,13 +274,15 @@ def plot_greens_function(archive, gf_name='G_iw', ax=None, block='up', xmax=None
         block - str (default 'up'), block of Green's function to read
         xmax, ymin, ymax - numbers (optional), axes limits
         colorbar - Boolean (default True), whether to draw colorbars.
+        indexL - integer (default 0). Left index
+        indexR - integer (default 0). Right index
     """
     n_loops = count_loops(archive)
     for i in range(n_loops):
         # Load the Green's function
         g = h5_read_full_path(archive, 'loop-{:03d}/{}'.format(i,gf_name))
         # Invoke the _plot_ protocol to get plotting data
-        data = g[block]._plot_({})
+        data = g[block][indexL,indexR]._plot_({})
         # If this is the first loop, extract some metadata
         if i == 0:
             xlabel = data[0]['xlabel']

@@ -79,7 +79,7 @@ class DMFTHubbardSubstrate(dmft.dmft.DMFTHubbard):
         if prior_loops is None:
             prior_loops = self.last_loop + 1
         if mpi.is_master_node():
-            print("=================\nStarting DMFT loop\n====================")
+            print("====================\nStarting DMFT loop\n====================")
             if prior_loops > 0:
                 print(f"Continuation job from {prior_loops} prior loops.")
         # If we aren't doing a continuation job, set our initial guess for the self-energy
