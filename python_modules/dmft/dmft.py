@@ -20,6 +20,7 @@ import triqs.version
 
 import dmft.dos
 import dmft.version
+import dmft.utils
 
 # Hide the code line in the warnings
 # This line might come back to bite me if it affects the global scope
@@ -179,6 +180,7 @@ class DMFTHubbard:
         if mpi.is_master_node():
             print("Finished DMFT loop.")
     @classmethod
+    @dmft.utils.archive_reader2
     def load(cls, archive):
         """
         Load a DMFT instance from an archive.
@@ -186,9 +188,6 @@ class DMFTHubbard:
         You must have run record_metadata and loop to have the right data
         recorded. Although record_metadata is done automatically.
         """
-        if isinstance(archive, str):
-            with HDFArchive(archive, 'r') as A:
-                return cls.load(A)
         # Get the latest loop
         loop_index, loop = cls._load_get_latest_loop(archive)
         params, code = cls._load_get_params_and_code(archive)
@@ -225,7 +224,7 @@ class DMFTHubbard:
         # Check if the environment has changed and throw appropriate warnings
         try:
             if mpi.size != params['MPI_ranks']:
-                warnings.warn("Original calculations were with {0} MPI ranks, but current environment has {1} ranks.".format(mpi.size, params['MPI_ranks']), EnvironmentWarning)
+                warnings.warn("Original calculations were with {1} MPI ranks, but current environment has {0} ranks.".format(mpi.size, params['MPI_ranks']), EnvironmentWarning)
         except KeyError:
             warnings.warn("Unknown MPI ranks in loaded data.", EnvironmentWarning)
         # Check versions
@@ -301,11 +300,8 @@ class DMFTHubbardKagome(DMFTHubbard):
         SG['kagome_nk'] = self.nk
         SG['kagome_offset'] = self.offset
     @classmethod
+    @dmft.utils.archive_reader2
     def load(cls, archive):
-        # Open the archive if not already
-        if isinstance(archive, str):
-            with HDFArchive(archive, 'r') as A:
-                return cls.load(A)
         # Do all the base class loading
         self = super().load(archive)
         # Load the kagome metadata
@@ -339,11 +335,8 @@ class DMFTHubbardBethe(DMFTHubbard):
         SG['bethe_t'] = self.t
         SG['bethe_offset'] = self.offset
     @classmethod
+    @dmft.utils.archive_reader2
     def load(cls, archive):
-        # Open the archive if not already
-        if isinstance(archive, str):
-            with HDFArchive(archive, 'r') as A:
-                return cls.load(A)
         # Do all the base class loading
         self = super().load(archive)
         # Load the kagome metadata
@@ -360,6 +353,9 @@ class DMFTHubbardBethe(DMFTHubbard):
         return self
 
 if __name__ == "__main__":
+    # Import here to reduce risk of circular dependencies,
+    # and also because the substrates logic is exactly the same.
+    import dmft.dmftsubstrate
     # Set up command line argument parser.
     # The point is to be able to run regular calculations from the command line
     # without having to write a whole script.
@@ -374,6 +370,8 @@ if __name__ == "__main__":
     parser.add_argument('-a','--archive', help="Archive to record data to.")
     parser.add_argument('--nl', type=int, help="Number of Legendre polynomials to fit G_l in QMC (if any).")
     parser.add_argument('-o','--overwrite', action='store_true', help="Forcibly overwrite the existing archive. May act a bit unpredictably from merging the data.")
+    parser.add_argument('-V', type=float, help="Coupling V between substrate and Hubbard. Only use if want a substrate.")
+    parser.add_argument('--bandwidth', type=float, help="Substrate bandwidth. Only use if want a substrate.")
 
     subparsers = parser.add_subparsers(dest='lattice', help="Which lattice to solve. Or run a continuation job (which ignores all parameters except --archive and --nloops).")
 
@@ -388,12 +386,21 @@ if __name__ == "__main__":
     bethe_parser.add_argument('--offset', type=float, default=0, help="Offset")
     bethe_parser.add_argument('--bins', type=int, default=200, help="Number of DOS energy bins.")
     
-    subparsers.add_parser('continue')
+    continue_parser = subparsers.add_parser('continue')
+    continue_parser.add_argument('--substrate', action='store_true', help="Continuation job of a system with a substrate.")
 
     args = parser.parse_args()
     
     # Is this a continuation job?
     continuation = args.lattice == 'continue'
+    # Is this a substrate job?
+    if (continuation and args.substrate) or (args.V is not None) or (args.bandwidth is not None):
+        substrate = True
+        # Validation of supplied arguments
+        if not continuation and (args.V is None or args.bandwidth is None):
+            raise TypeError("Must include both -V and --bandwidth, not just one.")
+    else:
+        substrate = False
     changed = False
     # Check the existence of the archive and if we should overwrite it.
     if os.path.isfile(args.archive) and not args.overwrite and not continuation:
@@ -406,7 +413,11 @@ if __name__ == "__main__":
         # While I could go to the extent to extracting t and offset from the 
         # respective lattices, it isn't necessary, so I won't bother.
         with warnings.catch_warnings(record=True) as w:
-            hubbard = DMFTHubbard.load(args.archive)
+            if substrate:
+                cls = dmft.dmftsubstrate.DMFTHubbardSubstrate
+            else:
+                cls = DMFTHubbard
+            hubbard = cls.load(args.archive)
             # Count if any EnvironmentWarnings were raised.
             w2 = [warn for warn in w if issubclass(warn.category, EnvironmentWarning)]
             if len(w2) > 0:
@@ -415,7 +426,7 @@ if __name__ == "__main__":
                 # There is another instance in which we want changed==True
                 # When we are already using a modified parameter set
                 with HDFArchive(args.archive, 'r') as A:
-                    loop_index, loop = DMFTHubbard._load_get_latest_loop(A)
+                    loop_index, loop = cls._load_get_latest_loop(A)
                     if 'params' in loop or 'code' in loop:
                         changed = True
                     # Close/un-bind the HDFArchive group
@@ -423,17 +434,28 @@ if __name__ == "__main__":
                     del loop
     # No continuation job. Go ahead with existing lattices.
     elif args.lattice == 'kagome':
-        hubbard = DMFTHubbardKagome(beta=args.beta, u=args.u, mu=args.mu, nl=args.nl)
+        if substrate:
+            cls = dmft.dmftsubstrate.DMFTHubbardSubstrateKagome
+        else:
+            cls = DMFTHubbardKagome
+        hubbard = cls(beta=args.beta, u=args.u, mu=args.mu, nl=args.nl)
         hubbard.set_dos(t=args.t, offset=args.offset, nk=args.nk, bins=args.bins)
     elif args.lattice == 'bethe':
-        hubbard = DMFTHubbardBethe(beta=args.beta, u=args.u, mu=args.mu, nl=args.nl)
+        if substrate:
+            cls = dmft.dmftsubstrate.DMFTHubbardSubstrateBethe
+        else:
+            cls = DMFTHubbardBethe
+        hubbard = cls(beta=args.beta, u=args.u, mu=args.mu, nl=args.nl)
         hubbard.set_dos(t=args.t, offset=args.offset, bins=args.bins)
     else:
         raise ValueError(f"Unrecognised lattice {args.lattice}.")
-    # If a new job, set the solver params.
+    # If a new job, set the solver params and substrate params
     if not continuation:
         hubbard.solver_params = dict(n_cycles=args.cycles, length_cycle=args.length, n_warmup_cycles=args.warmup)
         if args.nl is not None:
             hubbard.solver_params['measure_G_l'] = True
+        if substrate:
+            hubbard.set_substrate(args.bandwidth)
+            hubbard.V = args.V
     # Run the loop
     hubbard.loop(args.nloops, archive=args.archive, save_metadata_per_loop=changed)

@@ -169,7 +169,7 @@ class MaxEnt():
     def load_G_tau(self, archive, block='up', index=0):
         """Loads a G_tau from the last DMFT loop in a HDF5 archive"""
         G_tau_block = get_last_G_tau(archive)
-        self.set_G_tau(G_tau_block[block][index])
+        self.set_G_tau(G_tau_block[block][index,index])
     def set_error(self, err):
         self.tm.set_error(err)
     def run(self):
@@ -560,6 +560,7 @@ if __name__ == "__main__":
     parser.add_argument('--omax', type=float, help="Maximum omega")
     parser.add_argument('--nomega', type=int, help="Number of omega points")
     parser.add_argument('-b','--block', default='up', help="Block of G_tau to analytically continue.")
+    parser.add_argument('-i','--index', type=int, default=0, help="(Diagonal) index of G_tau to analytically continue.")
     parser.add_argument('-d','--digits', type=int, default=2,
             help="Number of digits (with leading zeros) for the results index.")
     parser.add_argument('-n','--name', default='maxent/analysis',
@@ -587,7 +588,7 @@ if __name__ == "__main__":
         for loop in args.loops:
             dmft_loop = 'loop-{:03d}'.format(loop)
             try:
-                G_tau = h5_read_full_path(args.input, dmft_loop+'/G_tau')[args.block]
+                G_tau = h5_read_full_path(args.input, dmft_loop+'/G_tau')[args.block][args.index,args.index]
             except KeyError:
                 warn(dmft_loop+'/G_tau not found')
             else:
@@ -617,6 +618,7 @@ if __name__ == "__main__":
             maxent.write_metadata(args.output, name)
             h5_write_full_path(args.output, dmft_loop, name+'/dmft_loop')
             h5_write_full_path(args.output, args.block, name+'/block')
+            h5_write_full_path(args.output, args.index, name+'/index')
         # Run the MaxEnt calculation
         maxent.run()
         # Record the result

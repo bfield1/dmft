@@ -59,6 +59,17 @@ class DMFTHubbardSubstrate(dmft.dmft.DMFTHubbard):
         # Record substrate metadata
         SG2['bandwidth'] = self.bandwidth
         SG2['V'] = self.V
+    @classmethod
+    @dmft.utils.archive_reader2
+    def load(cls, archive):
+        # Do all the base class loading
+        self = super().load(archive)
+        # Load the metadata
+        params, code = cls._load_get_params_and_code(archive)
+        # Load the substrate parameters
+        self.set_substrate(params['substrate']['bandwidth'])
+        self.V = params['substrate']['V']
+        return self
     def loop(self, n_loops, archive=None, prior_loops=None,
             save_metadata_per_loop=False, enforce_spins=True):
         """
@@ -160,3 +171,18 @@ class DMFTHubbardSubstrate(dmft.dmft.DMFTHubbard):
             self.last_loop = i_loop + prior_loops
         if mpi.is_master_node():
             print("Finished DMFT loop.")
+
+class DMFTHubbardSubstrateBethe(DMFTHubbardSubstrate, dmft.dmft.DMFTHubbardBethe):
+    """
+    DMFT with Bethe Hubbard model coupled to a flat substrate
+    """
+    # Inheritance covers all the necessary steps
+    pass
+
+class DMFTHubbardSubstrateKagome(DMFTHubbardSubstrate, dmft.dmft.DMFTHubbardKagome):
+    """
+    DMFT with Kagome Hubbard model coupled to a flat substrate
+    """
+    # Inheritance covers all the necessary steps
+    pass
+

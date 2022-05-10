@@ -15,6 +15,19 @@ def archive_reader(func):
         else:
             return func(archive, *args, **kwargs)
     return reader
+def archive_reader2(func):
+    """
+    For a function which reads a HDFArchive as the second argument,
+    it opens the archive (read-only) if a string was passed.
+    """
+    @functools.wraps(func)
+    def reader(self, archive, *args, **kwargs):
+        if isinstance(archive, str):
+            with HDFArchive(archive, 'r') as A:
+                return func(self, A, *args, **kwargs)
+        else:
+            return func(self, archive, *args, **kwargs)
+    return reader
 
 def h5_write_full_path(archive, item, path):
     """
