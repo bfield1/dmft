@@ -73,12 +73,13 @@ def count_loops(archive):
     return len([k for k in archive if k[0:5] == 'loop-'])
 
 @archive_reader
-def get_maxent(archive, block='up'):
+def get_maxent(archive, block='up', index=0):
     """
     Get the MaxEnt corresponding to each loop
 
     Inputs: archive - HDFArchive or string
-        block - string, 'up' or 'down'
+        block - string, 'up' or 'down' to filter
+        index - int, Green's function index to filter
     Output: List of MaxEnt objects, arranged by loop.
         Will have None values where no matching data can be found.
     """
@@ -103,6 +104,12 @@ def get_maxent(archive, block='up'):
             entry['block'] = SG['block']
         except KeyError:
             entry['block'] = None
+        try:
+            entry['index'] = SG['index']
+        except KeyError:
+            # The old behaviour, before index was relevant, was to omit index
+            # so the default value is 0.
+            entry['index'] = 0
         results.append(entry)
     # Sort the results
     # I assume all entries are of standard form, analysis_xx, so I can sort
@@ -136,11 +143,28 @@ def get_maxent(archive, block='up'):
         # while editing the list.
         for i in reversed(idx):
             results.pop(i)
+    # Now filter by index
+    indices = [entry['index'] for entry in results]
+    # Case: no indices match
+    if index not in indices:
+        warn(f"No matches for index {index}.")
+        # Return empty output
+        return [None] * total_loops
+    # Case: some indices match.
+    # (All indices matching mean no processing required)
+    else:
+        # Collect the list indices which do not match 'index'
+        idx = [i for i in range(len(indices)) if indices[i] != index]
+        # Delete non-matching elements
+        # Reversing the order (from highest to lowest) preserves indices
+        # while editing the list.
+        for i in reversed(idx):
+            results.pop(i)
     # Now we shall filter out cases where maxent data is missing
     maxents = [entry['maxent'] for entry in results]
     if None in maxents:
         if maxents.count(None) == len(maxents):
-            warn(f"All MaxEnt results are missing!")
+            warn("All MaxEnt results are missing!")
             return [None] * total_loops
         # Collect indices where maxents is None
         idx = [i for i in range(len(maxents)) if maxents[i] is None]
@@ -174,7 +198,7 @@ def get_maxent(archive, block='up'):
 
 @wrap_plot
 @archive_reader
-def plot_spectrum(archive, block='up', choice='Chi2Curvature', ax=None, colorbar=True, trim=True):
+def plot_spectrum(archive, block='up', choice='Chi2Curvature', ax=None, colorbar=True, trim=True, index=0):
     """
     Plots the spectral function as a function of DMFT loop
 
@@ -185,9 +209,10 @@ def plot_spectrum(archive, block='up', choice='Chi2Curvature', ax=None, colorbar
         colorbar - Boolean, whether to draw a colorbar.
         trim - Boolean (default True), whether to trim the loops range if it
             does not extend to the ends of the array
+        index - int (default 0). Green's function index to consider.
     """
     # Load spectra
-    spectra = get_maxent(archive, block)
+    spectra = get_maxent(archive, block, index)
     minloop = 0
     if trim:
         # Trim out leading nans
