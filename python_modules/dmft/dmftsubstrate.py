@@ -121,8 +121,8 @@ class DMFTHubbardSubstrate(dmft.dmft.DMFTHubbard):
             dG = G.copy()
             for name, _ in G:
                 # dG is an in-between variable, the matrix before we invert it
-                dG[name][0,1] << self.V
-                dG[name][1,0] << self.V
+                dG[name][0,1] << -self.V
+                dG[name][1,0] << -self.V
                 dG[name][1,1] << gf.inverse(Gsub)
                 # Hilbert transform: an integral involving the DOS
                 for i in range(len(self.rho)):
