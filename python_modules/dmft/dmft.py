@@ -372,6 +372,7 @@ if __name__ == "__main__":
     parser.add_argument('-o','--overwrite', action='store_true', help="Forcibly overwrite the existing archive. May act a bit unpredictably from merging the data.")
     parser.add_argument('-V', type=float, help="Coupling V between substrate and Hubbard. Only use if want a substrate.")
     parser.add_argument('--bandwidth', type=float, help="Substrate bandwidth. Only use if want a substrate.")
+    parser.add_argument('--enforce-sigma', action='store_true', help="Force only the Hubbard part of Sigma to contribute to self-consistency.")
 
     subparsers = parser.add_subparsers(dest='lattice', help="Which lattice to solve. Or run a continuation job (which ignores all parameters except --archive and --nloops).")
 
@@ -457,5 +458,9 @@ if __name__ == "__main__":
         if substrate:
             hubbard.set_substrate(args.bandwidth)
             hubbard.V = args.V
+    # Grab substrate-only kwargs for loop
+    loops_kwargs = dict()
+    if substrate:
+        loops_kwargs['enforce_sigma_hubbard_only'] = args.enforce_sigma
     # Run the loop
-    hubbard.loop(args.nloops, archive=args.archive, save_metadata_per_loop=changed)
+    hubbard.loop(args.nloops, archive=args.archive, save_metadata_per_loop=changed, **loops_kwargs)

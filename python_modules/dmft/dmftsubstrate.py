@@ -71,7 +71,8 @@ class DMFTHubbardSubstrate(dmft.dmft.DMFTHubbard):
         self.V = params['substrate']['V']
         return self
     def loop(self, n_loops, archive=None, prior_loops=None,
-            save_metadata_per_loop=False, enforce_spins=True):
+            save_metadata_per_loop=False, enforce_spins=True,
+            enforce_sigma_hubbard_only=False):
         """
         Perform DMFT loops, writing results for each loop to an archive
         
@@ -85,6 +86,9 @@ class DMFTHubbardSubstrate(dmft.dmft.DMFTHubbard):
                 each loop.
             enforce_spins - Boolean. If True, forces spin up and down sectors
                 to be the same. Enhances numerical stability.
+            enforce_sigma_hubbard_only - Boolean. If True, only the Hubbard 
+                part of the self-energy enters the self-consistency condition.
+                Otherwise, the full self-energy enters it.
         Results are stored in the group loop-XXX, where XXX is the loop number.
         """
         if prior_loops is None:
@@ -116,6 +120,12 @@ class DMFTHubbardSubstrate(dmft.dmft.DMFTHubbard):
                 sigma = dict(up=sigma, down=sigma)
             else:
                 sigma = self.S.Sigma_iw
+            # Enforce self-energy entering only into the interacting part
+            # for the self-consistency condition.
+            if enforce_sigma_hubbard_only:
+                sigma[1,0] << 0
+                sigma[0,1] << 0
+                sigma[1,1] << 0
             # Do the self-consistency condition
             G.zero()
             dG = G.copy()
