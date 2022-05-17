@@ -123,9 +123,10 @@ class DMFTHubbardSubstrate(dmft.dmft.DMFTHubbard):
             # Enforce self-energy entering only into the interacting part
             # for the self-consistency condition.
             if enforce_sigma_hubbard_only:
-                sigma[1,0] << 0
-                sigma[0,1] << 0
-                sigma[1,1] << 0
+                for name in ['up','down']:
+                    sigma[name][1,0] << 0
+                    sigma[name][0,1] << 0
+                    sigma[name][1,1] << 0
             # Do the self-consistency condition
             G.zero()
             dG = G.copy()
