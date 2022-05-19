@@ -2,6 +2,8 @@
 DMFT solver for a system with a substrate
 """
 
+import numpy as np
+
 import triqs.gf as gf
 import triqs.operators as op
 import triqs.utility.mpi as mpi
@@ -225,6 +227,9 @@ class DMFTHubbardSubstrateRotated(DMFTHubbardSubstrate):
             except AttributeError:
                 pass
         return self
+    @property
+    def U(self):
+        return super().U
     @U.setter
     def U(self, u):
         self._U = u
@@ -330,16 +335,21 @@ class DMFTHubbardSubstrateRotated(DMFTHubbardSubstrate):
                     SG = A[key]
                     # We need to rotate into the original basis to save
                     G.zero()
-                    G.from_L_G_R(rotmat, self.S.G_iw, rotmat)
+                    for name, g in G:
+                        g.from_L_G_R(rotmat, self.S.G_iw[name], rotmat)
                     SG['G_iw'] = G
-                    G.from_L_G_R(rotmat, self.S.Sigma_iw, rotmat)
+                    for name, g in G:
+                        g.from_L_G_R(rotmat, self.S.Sigma_iw[name], rotmat)
                     SG['Sigma_iw'] = G
-                    G.from_L_G_R(rotmat, self.S.G0_iw, rotmat)
+                    for name, g in G:
+                        g.from_L_G_R(rotmat, self.S.G0_iw[name], rotmat)
                     SG['G0_iw'] = G
-                    G.from_L_G_R(rotmat, self.S.G_tau, rotmat)
+                    for name, g in G:
+                        g.from_L_G_R(rotmat, self.S.G_tau[name], rotmat)
                     SG['G_tau'] = G
                     if 'measure_G_l' in self.solver_params and self.solver_params['measure_G_l']:
-                        G.from_L_G_R(rotmat, self.S.G_l, rotmat)
+                        for name, g in G:
+                            g.from_L_G_R(rotmat, self.S.G_l[name], rotmat)
                         SG['G_l'] = G
                     SG['average_sign'] = self.S.average_sign
                     if save_metadata_per_loop:
