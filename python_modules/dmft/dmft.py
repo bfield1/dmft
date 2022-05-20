@@ -387,6 +387,9 @@ if __name__ == "__main__":
     bethe_parser.add_argument('-t', type=float, help="Hopping", default=1)
     bethe_parser.add_argument('--offset', type=float, default=0, help="Offset")
     bethe_parser.add_argument('--bins', type=int, default=200, help="Number of DOS energy bins.")
+
+    impurity_parser = subparser.add_parser('impurity')
+    impurity_parser.add_argument('-e','--energy', type=float, help="Impurity energy", default=0)
     
     continue_parser = subparsers.add_parser('continue')
     continue_parser.add_argument('--substrate', action='store_true', help="Continuation job of a system with a substrate.")
@@ -396,7 +399,7 @@ if __name__ == "__main__":
     # Is this a continuation job?
     continuation = args.lattice == 'continue'
     # Is this a substrate job?
-    if (continuation and args.substrate) or (args.V is not None) or (args.bandwidth is not None):
+    if (continuation and args.substrate) or (args.V is not None) or (args.bandwidth is not None) or args.impurity:
         substrate = True
         # Validation of supplied arguments
         if not continuation and (args.V is None or args.bandwidth is None):
@@ -458,6 +461,10 @@ if __name__ == "__main__":
             cls = DMFTHubbardBethe
         hubbard = cls(beta=args.beta, u=args.u, mu=args.mu, nl=args.nl)
         hubbard.set_dos(t=args.t, offset=args.offset, bins=args.bins)
+    elif args.lattice == 'impurity':
+        cls = dmft.dmftsubstrate.DMFTHubbardSubstrateImpurity
+        hubbard = cls(beta=args.beta, u=args.u, mu=args.mu, nl=args.nl)
+        hubbard.set_dos(args.energy)
     else:
         raise ValueError(f"Unrecognised lattice {args.lattice}.")
     # If a new job, set the solver params and substrate params

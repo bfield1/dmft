@@ -199,6 +199,33 @@ class DMFTHubbardSubstrateKagome(DMFTHubbardSubstrate, dmft.dmft.DMFTHubbardKago
     # Inheritance covers all the necessary steps
     pass
 
+class DMFTHubbardSubstrateImpurity(DMFTHubbardSubstrate):
+    """
+    DMFT with Anderson Impurity Model coupled to a flat substrate
+    """
+    def set_dos(self, ed, width=0.01):
+        """
+        Record non-interacting DOS for an atomic impurity at energy ed.
+
+        width: DOS is rectangular, but this parameter doesn't actually matter
+            because the summation makes the width cancel out.
+        """
+        super().set_dos([1/width], [ed], [width])
+        self.ed = ed
+    def record_metadata(self, A):
+        super().record_metadata(A)
+        SG = A['params']
+        SG['impurity_energy'] = self.ed
+    @classmethod
+    @dmft.utils.archive_reader2
+    def load(cls, archive):
+        self = super().load(archive)
+        params, code = cls._load_get_params_and_code(archive)
+        try:
+            self.ed = params['impurity_energy']
+        except KeyError:
+            pass
+
 class DMFTHubbardSubstrateRotated(DMFTHubbardSubstrate):
     """
     DMFT with Hubbard model coupled to a flat substrate, evaluated in rotated
