@@ -344,13 +344,15 @@ class DMFTHubbardSubstrateRotated(DMFTHubbardSubstrate):
                     for name, g in G:
                         g.from_L_G_R(rotmat, self.S.G0_iw[name], rotmat)
                     SG['G0_iw'] = G
-                    for name, g in G:
+                    Gt = self.S.G_tau.copy()
+                    for name, g in Gt:
                         g.from_L_G_R(rotmat, self.S.G_tau[name], rotmat)
-                    SG['G_tau'] = G
+                    SG['G_tau'] = Gt
                     if 'measure_G_l' in self.solver_params and self.solver_params['measure_G_l']:
-                        for name, g in G:
+                        Gl = self.S.G_l.copy()
+                        for name, g in Gl:
                             g.from_L_G_R(rotmat, self.S.G_l[name], rotmat)
-                        SG['G_l'] = G
+                        SG['G_l'] = Gl
                     SG['average_sign'] = self.S.average_sign
                     if save_metadata_per_loop:
                         self.record_metadata(SG)
