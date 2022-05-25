@@ -569,18 +569,25 @@ if __name__ == "__main__":
             help="Do not automatically add a number to the name if name already unique")
     parser.add_argument('-l','--loops', nargs='+', type=int,
             help="Take G_tau from these loops and do MaxEnt on each of them (defaults to only the last one).")
+    parser.add_argument('-s','--substrate', action='store_true',
+            help="Read G_sub_tau instead of G_tau")
     args = parser.parse_args()
     
     if args.output is None:
         args.output = args.input
     
+    if args.substrate:
+        gname = 'G_sub_tau'
+    else:
+        gname = 'G_tau'
+
     # Get G_tau and the loop numbers
     if args.loops is None:
         # Take the last one
-        # Load G_tau, taking one of the blocks.
-        G_tau_list = [get_last_G_tau(args.input)[args.block]]
-        # Also record the dmft_loop that is from, for our records.
+        # Record the dmft_loop that is from, for our records.
         dmft_loop_list = [get_last_loop(args.input)]
+        # Load G_tau, taking one of the blocks.
+        G_tau_list = [h5_read_full_path(args.input, dmft_loop_list[0]+'/'+gname)[args.block]]
     else:
         # Gather up all the G_tau's for the specified loops.
         dmft_loop_list = []
@@ -588,9 +595,9 @@ if __name__ == "__main__":
         for loop in args.loops:
             dmft_loop = 'loop-{:03d}'.format(loop)
             try:
-                G_tau = h5_read_full_path(args.input, dmft_loop+'/G_tau')[args.block][args.index,args.index]
+                G_tau = h5_read_full_path(args.input, dmft_loop+'/'+gname)[args.block][args.index,args.index]
             except KeyError:
-                warn(dmft_loop+'/G_tau not found')
+                warn(dmft_loop+'/'+gname+' not found')
             else:
                 dmft_loop_list.append(dmft_loop)
                 G_tau_list.append(G_tau)
@@ -598,7 +605,7 @@ if __name__ == "__main__":
         # Let us go through the output and find a unique name to write to
         name = find_unique_name(args.output, args.name, digits=args.digits, always_number=(not args.nonumber))
         if mpi.is_master_node():
-            print("Processing G_tau from", dmft_loop)
+            print("Processing", gname, "from", dmft_loop)
             print("Writing MaxEnt data to", name)
         # Generate MaxEnt object with its alpha mesh
         maxent = MaxEnt(amin=args.amin, amax=args.amax, nalpha=args.nalpha)
@@ -617,7 +624,10 @@ if __name__ == "__main__":
         if mpi.is_master_node():
             maxent.write_metadata(args.output, name)
             h5_write_full_path(args.output, dmft_loop, name+'/dmft_loop')
-            h5_write_full_path(args.output, args.block, name+'/block')
+            if args.substrate:
+                h5_write_full_path(args.output, args.block+'_sub', name+'/block')
+            else:
+                h5_write_full_path(args.output, args.block, name+'/block')
             h5_write_full_path(args.output, args.index, name+'/index')
         # Run the MaxEnt calculation
         maxent.run()
