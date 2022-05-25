@@ -372,8 +372,6 @@ if __name__ == "__main__":
     parser.add_argument('-o','--overwrite', action='store_true', help="Forcibly overwrite the existing archive. May act a bit unpredictably from merging the data.")
     parser.add_argument('-V', type=float, help="Coupling V between substrate and Hubbard. Only use if want a substrate.")
     parser.add_argument('--bandwidth', type=float, help="Substrate bandwidth. Only use if want a substrate.")
-    parser.add_argument('--enforce-sigma', action='store_true', help="Force only the Hubbard part of Sigma to contribute to self-consistency.")
-    parser.add_argument('--rotated-basis', action='store_true', help="Perform substrate impurity calculations in a rotated basis.")
 
     subparsers = parser.add_subparsers(dest='lattice', help="Which lattice to solve. Or run a continuation job (which ignores all parameters except --archive and --nloops).")
 
@@ -419,10 +417,7 @@ if __name__ == "__main__":
         # respective lattices, it isn't necessary, so I won't bother.
         with warnings.catch_warnings(record=True) as w:
             if substrate:
-                if args.rotated_basis:
-                    cls = dmft.dmftsubstrate.DMFTHubbardSubstrateRotated
-                else:
-                    cls = dmft.dmftsubstrate.DMFTHubbardSubstrate
+                cls = dmft.dmftsubstrate.DMFTHubbardSubstrate
             else:
                 cls = DMFTHubbard
             hubbard = cls.load(args.archive)
@@ -443,20 +438,14 @@ if __name__ == "__main__":
     # No continuation job. Go ahead with existing lattices.
     elif args.lattice == 'kagome':
         if substrate:
-            if args.rotated_basis:
-                cls = dmft.dmftsubstrate.DMFTHubbardSubstrateKagomeRotated
-            else:
-                cls = dmft.dmftsubstrate.DMFTHubbardSubstrateKagome
+            cls = dmft.dmftsubstrate.DMFTHubbardSubstrateKagome
         else:
             cls = DMFTHubbardKagome
         hubbard = cls(beta=args.beta, u=args.u, mu=args.mu, nl=args.nl)
         hubbard.set_dos(t=args.t, offset=args.offset, nk=args.nk, bins=args.bins)
     elif args.lattice == 'bethe':
         if substrate:
-            if args.rotated_basis:
-                cls = dmft.dmftsubstrate.DMFTHubbardSubstrateBetheRotated
-            else:
-                cls = dmft.dmftsubstrate.DMFTHubbardSubstrateBethe
+            cls = dmft.dmftsubstrate.DMFTHubbardSubstrateBethe
         else:
             cls = DMFTHubbardBethe
         hubbard = cls(beta=args.beta, u=args.u, mu=args.mu, nl=args.nl)
@@ -478,7 +467,6 @@ if __name__ == "__main__":
     # Grab substrate-only kwargs for loop
     loops_kwargs = dict()
     if substrate:
-        if not args.rotated_basis:
-            loops_kwargs['enforce_sigma_hubbard_only'] = args.enforce_sigma
+        pass
     # Run the loop
     hubbard.loop(args.nloops, archive=args.archive, save_metadata_per_loop=changed, **loops_kwargs)
