@@ -388,7 +388,7 @@ if __name__ == "__main__":
     bethe_parser.add_argument('--offset', type=float, default=0, help="Offset")
     bethe_parser.add_argument('--bins', type=int, default=200, help="Number of DOS energy bins.")
 
-    impurity_parser = subparser.add_parser('impurity')
+    impurity_parser = subparsers.add_parser('impurity')
     impurity_parser.add_argument('-e','--energy', type=float, help="Impurity energy", default=0)
     
     continue_parser = subparsers.add_parser('continue')
