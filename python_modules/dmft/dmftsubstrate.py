@@ -163,7 +163,7 @@ class DMFTHubbardSubstrate(dmft.dmft.DMFTHubbard):
             # Hilbert transform: an integral involving the DOS
             for i in range(len(self.rho)):
                 # Do the Reimann sum of the system.
-                G[name] << G[name] + self.rho[i] * self.delta[i] * gf.inverse(gf.inverse(Gsub) - V**2 * gf.inverse(gf.iOmega_n + self.mu - self.energy[i] - self.S.Sigma_iw[name]))
+                G[name] << G[name] + self.rho[i] * self.delta[i] * gf.inverse(gf.inverse(Gsub) - self.V**2 * gf.inverse(gf.iOmega_n + self.mu - self.energy[i] - self.S.Sigma_iw[name]))
         return G
 
 
