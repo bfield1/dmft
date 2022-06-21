@@ -139,6 +139,11 @@ class DMFTHubbardSubstrate(dmft.dmft.DMFTHubbard):
                     if 'measure_G_l' in self.solver_params and self.solver_params['measure_G_l']:
                         SG['G_l'] = self.S.G_l
                     SG['average_sign'] = self.S.average_sign
+                    if 'measure_density_matrix' in self.solver_params and self.solver_params['measure_density_matrix']:
+                        SG['density_matrix'] = self.S.density_matrix
+                        SG['h_loc_diagonalization'] = self.S.h_loc_diagonalization
+                    if 'measure_O_tau' in self.solver_params:
+                        SG['O_tau'] = self.S.O_tau
                     if save_metadata_per_loop:
                         self.record_metadata(SG)
                     if save_Gsub:

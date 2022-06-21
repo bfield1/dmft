@@ -174,6 +174,11 @@ class DMFTHubbard:
                     if 'measure_G_l' in self.solver_params and self.solver_params['measure_G_l']:
                         SG['G_l'] = self.S.G_l
                     SG['average_sign'] = self.S.average_sign
+                    if 'measure_density_matrix' in self.solver_params and self.solver_params['measure_density_matrix']:
+                        SG['density_matrix'] = self.S.density_matrix
+                        SG['h_loc_diagonalization'] = self.S.h_loc_diagonalization
+                    if 'measure_O_tau' in self.solver_params:
+                        SG['O_tau'] = self.S.O_tau
                     if save_metadata_per_loop:
                         self.record_metadata(SG)
             self.last_loop = i_loop + prior_loops
@@ -363,17 +368,28 @@ if __name__ == "__main__":
     parser.add_argument('-b','--beta', type=float, help="Inverse temperature.")
     parser.add_argument('-u', type=float, help="Hubbard U")
     parser.add_argument('-m','--mu', type=float, default=0, help="Chemical potential")
-    parser.add_argument('-n','--nloops', type=int, required=True, help="Number of DMFT loops.")
-    parser.add_argument('-c','--cycles', type=int, default=200000, help="Number of QMC cycles.")
-    parser.add_argument('-l','--length', type=int, default=50, help="Length of QMC cycles.")
-    parser.add_argument('-w','--warmup', type=int, default=10000, help="Number of warmup QMC cycles.")
+    parser.add_argument('-n','--nloops', type=int, required=True,
+            help="Number of DMFT loops.")
+    parser.add_argument('-c','--cycles', type=int, default=200000,
+            help="Number of QMC cycles.")
+    parser.add_argument('-l','--length', type=int, default=50,
+            help="Length of QMC cycles.")
+    parser.add_argument('-w','--warmup', type=int, default=10000,
+            help="Number of warmup QMC cycles.")
     parser.add_argument('-a','--archive', help="Archive to record data to.")
-    parser.add_argument('--nl', type=int, help="Number of Legendre polynomials to fit G_l in QMC (if any).")
-    parser.add_argument('-o','--overwrite', action='store_true', help="Forcibly overwrite the existing archive. May act a bit unpredictably from merging the data.")
-    parser.add_argument('-V', type=float, help="Coupling V between substrate and Hubbard. Only use if want a substrate.")
-    parser.add_argument('--bandwidth', type=float, help="Substrate bandwidth. Only use if want a substrate.")
+    parser.add_argument('--nl', type=int,
+            help="Number of Legendre polynomials to fit G_l in QMC (if any).")
+    parser.add_argument('-o','--overwrite', action='store_true',
+            help="Forcibly overwrite the existing archive. May act a bit unpredictably from merging the data.")
+    parser.add_argument('-V', type=float,
+            help="Coupling V between substrate and Hubbard. Only use if want a substrate.")
+    parser.add_argument('--bandwidth', type=float,
+            help="Substrate bandwidth. Only use if want a substrate.")
+    parser.add_argument('--nodensity', action='store_true',
+            help="Don't record the density matrix.")
 
-    subparsers = parser.add_subparsers(dest='lattice', help="Which lattice to solve. Or run a continuation job (which ignores all parameters except --archive and --nloops).")
+    subparsers = parser.add_subparsers(dest='lattice',
+            help="Which lattice to solve. Or run a continuation job (which ignores all parameters except --archive and --nloops).")
 
     kagome_parser = subparsers.add_parser('kagome')
     kagome_parser.add_argument('-t', type=float, help="Hopping", default=1)
@@ -390,7 +406,8 @@ if __name__ == "__main__":
     impurity_parser.add_argument('-e','--energy', type=float, help="Impurity energy", default=0)
     
     continue_parser = subparsers.add_parser('continue')
-    continue_parser.add_argument('--substrate', action='store_true', help="Continuation job of a system with a substrate.")
+    continue_parser.add_argument('--substrate', action='store_true',
+            help="Continuation job of a system with a substrate.")
 
     args = parser.parse_args()
     
@@ -458,7 +475,9 @@ if __name__ == "__main__":
         raise ValueError(f"Unrecognised lattice {args.lattice}.")
     # If a new job, set the solver params and substrate params
     if not continuation:
-        hubbard.solver_params = dict(n_cycles=args.cycles, length_cycle=args.length, n_warmup_cycles=args.warmup)
+        hubbard.solver_params = dict(n_cycles=args.cycles, length_cycle=args.length,
+                n_warmup_cycles=args.warmup, measure_density_matrix=(not args.nodensity),
+                use_norm_as_weight=(not args.nodensity))
         if args.nl is not None:
             hubbard.solver_params['measure_G_l'] = True
         if substrate:
