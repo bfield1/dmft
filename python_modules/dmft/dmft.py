@@ -385,8 +385,8 @@ if __name__ == "__main__":
             help="Coupling V between substrate and Hubbard. Only use if want a substrate.")
     parser.add_argument('--bandwidth', type=float,
             help="Substrate bandwidth. Only use if want a substrate.")
-    parser.add_argument('--nodensity', action='store_true',
-            help="Don't record the density matrix.")
+    parser.add_argument('-d','--density', action='store_true',
+            help="Record the density matrix.")
 
     subparsers = parser.add_subparsers(dest='lattice',
             help="Which lattice to solve. Or run a continuation job (which ignores all parameters except --archive and --nloops).")
@@ -408,6 +408,8 @@ if __name__ == "__main__":
     continue_parser = subparsers.add_parser('continue')
     continue_parser.add_argument('--substrate', action='store_true',
             help="Continuation job of a system with a substrate.")
+    continue_parser.add_argument('--newparams', action='store_true',
+            help="Create new solver_params.")
 
     args = parser.parse_args()
     
@@ -422,6 +424,9 @@ if __name__ == "__main__":
     else:
         substrate = False
     changed = False
+    # Have the parameters changed?
+    if continuation and args.newparams:
+        changed = True
     # Check the existence of the archive and if we should overwrite it.
     if os.path.isfile(args.archive) and not args.overwrite and not continuation:
         # It might not have DMFT data in it, though, just some logs. So check
@@ -473,16 +478,17 @@ if __name__ == "__main__":
         hubbard.set_dos(args.energy)
     else:
         raise ValueError(f"Unrecognised lattice {args.lattice}.")
-    # If a new job, set the solver params and substrate params
-    if not continuation:
+    # If a new job or if requested, set the solver params
+    if not continuation or (continuation and args.newparams):
         hubbard.solver_params = dict(n_cycles=args.cycles, length_cycle=args.length,
-                n_warmup_cycles=args.warmup, measure_density_matrix=(not args.nodensity),
-                use_norm_as_weight=(not args.nodensity))
+                n_warmup_cycles=args.warmup, measure_density_matrix=args.density,
+                use_norm_as_weight=args.density)
         if args.nl is not None:
             hubbard.solver_params['measure_G_l'] = True
-        if substrate:
-            hubbard.set_substrate(args.bandwidth)
-            hubbard.V = args.V
+    # If a new job, set the substrate params
+    if substrate and not continuation:
+        hubbard.set_substrate(args.bandwidth)
+        hubbard.V = args.V
     # Grab substrate-only kwargs for loop
     loops_kwargs = dict()
     if substrate:
