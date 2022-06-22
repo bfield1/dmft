@@ -7,6 +7,8 @@ import matplotlib.pyplot as plt
 import h5py
 
 import triqs.gf
+import triqs.operators as op
+import triqs.atom_diag
 
 from dmft.utils import archive_reader, h5_read_full_path, get_last_loop
 import dmft.logging.cat
@@ -195,3 +197,43 @@ def plot_band_edges_from_archive(archive, threshold=0.001, choice='Chi2Curvature
     """
     result = MaxEnt.load(archive)
     return plot_band_edges(result.omega, result.get_spectrum(choice), threshold)
+
+@archive_reader
+def static_observable_from_archive(archive, my_op, loop=None):
+    """
+    Runs triqs.atom_diag.trace_rho_op on a DMFT run
+
+    Inputs:
+        archive - h5 archive or str pointing to one
+        my_op - triqs.operators operators
+        loop - optional non-negative int or str (default None).
+    Output:
+        scalar, the expectation value of the given operator
+    """
+    # If no loop given, get the last loop
+    if loop is None:
+        loop = get_last_loop(archive)
+    # If loop is an integer, convert to string
+    elif isinstance(loop, int):
+        loop = 'loop-{:03d}'.format(loop)
+    # Load rho if it exists
+    if 'density_matrix' in archive[loop]:
+        rho = archive[loop]['density_matrix']
+    else:
+        raise KeyError(f"density_matrix was not recorded in {loop}.")
+    # If density_matrix exists, then h_loc_diag probably does too
+    h_loc_diag = archive[loop]['h_loc_diagonalization']
+    # Do the trace
+    return triqs.atom_diag.trace_rho_op(rho, my_op, h_loc_diag)
+
+def effective_spin_from_archive(archive, loop=None):
+    """
+    S_eff(S_eff+1) = <S.S> = 3<S_z S_z>, solve for S_eff
+    
+    Inputs: archive - h5 archive or str
+        loop - optional non-negative int or str (default None)
+    Output: scalar, the effective spin.
+    """
+    Sz = 0.5 * (op.n('up',0) - op.n('down',0))
+    SS = static_observable_from_archive(archive, 3*Sz*Sz, loop)
+    return -0.5 + 0.5 * np.sqrt(1 + 4*SS)
