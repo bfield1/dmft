@@ -1,6 +1,11 @@
 import functools
+import warnings
 
-from h5 import HDFArchive, HDFArchiveGroup
+try:
+    from h5 import HDFArchive, HDFArchiveGroup
+except ModuleNotFoundError:
+    warnings.warn("triqs/h5 not found. Loading fake version.")
+    from dmft.faketriqs.h5 import HDFArchive, HDFArchiveGroup
 
 def archive_reader(func):
     """
