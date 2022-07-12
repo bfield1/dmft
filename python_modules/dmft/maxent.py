@@ -11,7 +11,7 @@ import matplotlib.pyplot as plt
 import triqs.gf as gf # Needed to import the DMFT data
 try:
     from h5 import HDFArchive
-except ModuleNotFoundError:
+except ImportError:
     warnings.warn("triqs/h5 not found. Loading fake version.")
     from dmft.faketriqs.h5 import HDFArchive
 import triqs_maxent as me

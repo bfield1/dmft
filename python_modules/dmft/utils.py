@@ -3,7 +3,7 @@ import warnings
 
 try:
     from h5 import HDFArchive, HDFArchiveGroup
-except ModuleNotFoundError:
+except ImportError:
     warnings.warn("triqs/h5 not found. Loading fake version.")
     from dmft.faketriqs.h5 import HDFArchive, HDFArchiveGroup
 
