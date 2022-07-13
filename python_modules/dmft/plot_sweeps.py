@@ -15,7 +15,7 @@ from dmft.measure import quasiparticle_residue_from_archive, density_from_archiv
 from dmft.plot_loops import wrap_plot
 
 @wrap_plot
-def plot_spectrum(archive_list, colors, vals=None, choice='Chi2Curvature', ax=None, colorbar=True, legend=False, offset=0, legendlabel=''):
+def plot_spectrum(archive_list, colors, vals=None, choice='Chi2Curvature', ax=None, colorbar=True, legend=False, offset=0, legendlabel='', xmin=None, xmax=None, block=None):
     """
     Plots the spectra from archive_list on the same Axes
 
@@ -36,6 +36,8 @@ def plot_spectrum(archive_list, colors, vals=None, choice='Chi2Curvature', ax=No
         offset - Non-negative number. Amount to shift each spectrum vertically
             so they can be distinguished. Default 0.
         legendlabel - string. Optional. Label to attach to colorbar or legend.
+        xmin, xmax - numbers, Optional. Limits for x axis.
+        block - string, optional. Block to read (e.g. 'up', 'down').
     """
     # Check compatibility of arguments
     if len(archive_list) != len(colors):
@@ -46,7 +48,7 @@ def plot_spectrum(archive_list, colors, vals=None, choice='Chi2Curvature', ax=No
     if len(archive_list) == 0:
         return
     # Load the data
-    maxents = [MaxEnt.load(A) for A in archive_list]
+    maxents = [MaxEnt.load(A, block=block) for A in archive_list]
     # Plot the spectra
     for i in range(len(maxents)):
         # First spectrum we can use normal plotting.
@@ -67,6 +69,7 @@ def plot_spectrum(archive_list, colors, vals=None, choice='Chi2Curvature', ax=No
     # the first spectrum plotted
     ax.autoscale()
     ax.set_ylim(bottom=0)
+    ax.set_xlim(xmin, xmax)
     # Create the legend
     if legend:
         ax.legend(vals, title=legendlabel)
