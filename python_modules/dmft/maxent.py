@@ -28,7 +28,7 @@ except ImportError:
     import dmft.faketriqs.triqs.utility.mpi as mpi
 
 import dmft.version
-from dmft.utils import h5_write_full_path, h5_read_full_path, get_last_loop
+from dmft.utils import h5_write_full_path, h5_read_full_path, get_last_loop, archive_reader2
 from dmft.logging.writelog import find_unique_name
 
 def wrap_plot(func):
@@ -198,12 +198,14 @@ class MaxEnt():
         """
         h5_write_full_path(archive, self.data, path)
     @classmethod
-    def load(cls, archive, path=None):
+    @archive_reader2
+    def load(cls, archive, path=None, block=None):
         """
         Reads saved MaxEnt results from path in a HDF5 archive
 
         If path is not provided, assumes default names and loads the latest
         MaxEnt (path="maxent/analysis_??/results"
+        Or the latest MaxEnt which matches the given block.
 
         Compatible with any triqs_maxent.MaxEntResultData, not just those
         created by the class.
@@ -213,6 +215,23 @@ class MaxEnt():
         """
         if path is not None:
             data = h5_read_full_path(archive, path)
+        elif block is not None:
+            # Find the latest maxent/analysis_??/results which matches block
+            SG = archive['maxent']
+            # Lexicographical sort of keys
+            # Note: will give wrong results if have three-digit numbers
+            anlist = sorted([k for k in SG if k[0:9] == 'analysis_'])
+            if len(anlist) > 100:
+                warn("More than 100 MaxEnt analyses. Sorting won't work properly")
+            # Go through them backwards
+            data = None
+            for key in reversed(anlist):
+                if 'block' in SG[key]:
+                    if SG[key]['block'] == block:
+                        data = SG[key]['results']
+                        break
+            if data is None:
+                raise KeyError(f"No 'block' matching {block} found in archive.")
         else:
             data = get_last_maxent(archive)
         self = cls(alpha_mesh=data.alpha)
