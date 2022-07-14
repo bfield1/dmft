@@ -8,14 +8,24 @@ import functools
 import numpy as np
 import matplotlib.pyplot as plt
 
-import triqs.gf as gf # Needed to import the DMFT data
+try:
+    import triqs.gf as gf # Needed to import the DMFT data
+except ImportError:
+    warn("triqs not found. Some functions won't work.")
 try:
     from h5 import HDFArchive
 except ImportError:
-    warnings.warn("triqs/h5 not found. Loading fake version.")
+    warn("triqs/h5 not found. Loading fake version.")
     from dmft.faketriqs.h5 import HDFArchive
-import triqs_maxent as me
-import triqs.utility.mpi as mpi
+try:
+    import triqs_maxent as me
+except ImportError:
+    warn("triqs_maxent not found. Loading fake version.")
+    import dmft.faketriqs.triqs_maxent as me
+try:
+    import triqs.utility.mpi as mpi
+except ImportError:
+    import dmft.faketriqs.triqs.utility.mpi as mpi
 
 import dmft.version
 from dmft.utils import h5_write_full_path, h5_read_full_path, get_last_loop
@@ -40,6 +50,7 @@ def wrap_plot(func):
             plt.show()
         return plt.gcf(), plt.gca()
     return plotter
+
 def spectrum_plotter(func):
     """
     A decorator for functions which plot spectra.
