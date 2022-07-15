@@ -1,7 +1,7 @@
 import numpy as np
 
 from .mesh_point import MeshValueGenerator, MeshPoint
-
+from dmft.faketriqs.h5.formats import register_class
 
 statistic_enum = ['Boson','Fermion']
 
@@ -34,6 +34,8 @@ class Mesh_Generic():
         return (self.x_min == other.x_min) and (self.x_max == other.x_max) and (self.n == other.n)
     def __ne__(self, other):
         return not self == other
+    def __reduce_to_dict__(self):
+        raise NotImplementedError
 
 class MeshImTime(Mesh_Generic):
     def __init__(self, beta, S, n_max):
@@ -45,6 +47,19 @@ class MeshImTime(Mesh_Generic):
         super().__init__(x_min=0, x_max=beta, n=n_max)
     def copy(self):
         return MeshImTime(self.beta, self.statistic, self.n)
+    @classmethod
+    def __factory_from_dict__(cls, name, D):
+        """ this handles reading from h5 """
+        beta = D['domain']['beta']
+        S = D['domain']['statistic']
+        if S == 'F':
+            S = 'Fermion'
+        elif S == 'B':
+            S = 'Boson'
+        n = D['size']
+        return cls(beta, S, n)
+
+register_class(MeshImTime)
 
 class MeshReFreq(Mesh_Generic):
     def __init__(self, omega_min, omega_max, n_max):
@@ -85,4 +100,20 @@ class MeshImFreq(Mesh_Generic):
         return i - self.first_index()
     def positive_only(self):
         return False
+    @classmethod
+    def __factory_from_dict__(cls, name, D):
+        """ this handles reading from h5 """
+        beta = D['domain']['beta']
+        S = D['domain']['statistic']
+        positive_freq_only = bool(D['domain']['positive_freq_only'])
+        n = D['domain']['size']
+        if positive_freq_only:
+            raise NotImplementedError("faketriqs doesn't currently implement positive_freq_only")
+        if S == 'F':
+            S = 'Fermion'
+        elif S == 'B':
+            S = 'Boson'
+        n_max = int(n/2) - statistic_enum.index(S) + 1
+        return cls(beta, S, n_max)
 
+register_class(MeshImFreq)
