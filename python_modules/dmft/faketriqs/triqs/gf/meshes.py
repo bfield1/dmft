@@ -105,8 +105,8 @@ class MeshImFreq(Mesh_Generic):
         """ this handles reading from h5 """
         beta = D['domain']['beta']
         S = D['domain']['statistic']
-        positive_freq_only = bool(D['domain']['positive_freq_only'])
-        n = D['domain']['size']
+        positive_freq_only = bool(D['positive_freq_only'])
+        n = D['size']
         if positive_freq_only:
             raise NotImplementedError("faketriqs doesn't currently implement positive_freq_only")
         if S == 'F':

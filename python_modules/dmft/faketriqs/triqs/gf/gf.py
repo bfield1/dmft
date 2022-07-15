@@ -28,6 +28,7 @@ from dmft.faketriqs.triqs.plot.protocol import clip_array
 from . import meshes
 from . import plot 
 from . import gf_fnt
+from .gf_fnt import GfIndices
 
 # list of all the meshes
 all_meshes = (MeshProduct,) + tuple(c for c in list(meshes.__dict__.values()) if isinstance(c, type) and c.__name__.startswith('Mesh'))

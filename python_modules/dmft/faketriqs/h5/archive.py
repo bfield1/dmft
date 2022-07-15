@@ -143,7 +143,15 @@ class HDFArchiveGroup():
                 bare_return = lambda: dset.asstr()[()]
             # Otherwise, return as a numeric type.
             else:
-                bare_return = lambda: dset[()]
+                if "__complex__" in dset.attrs and dset.attrs["__complex__"] == "1":
+                    # We have a special case: the last dimension of this dataset
+                    # is 2, and encodes complex values
+                    if dset.shape[-1] != 2:
+                        bare_return = lambda: dset[()]
+                    else:
+                        bare_return = lambda: np.array(dset[...,0] + 1j*dset[...,1])
+                else:
+                    bare_return = lambda: dset[()]
         else :
             raise KeyError("Key %s is of unknown type !!"%Key)
 
