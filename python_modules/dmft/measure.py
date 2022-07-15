@@ -2,13 +2,19 @@
 Functions for measuring DMFT quantities.
 """
 
+import warnings
+
 import numpy as np
 import matplotlib.pyplot as plt
 import h5py
 
-import triqs.gf
-import triqs.operators as op
-import triqs.atom_diag
+try:
+    import triqs.gf as gf
+    import triqs.operators as op
+    import triqs.atom_diag
+except ImportError:
+    warnings.warn("triqs not found. Loading fake version")
+    import dmft.faketriqs.triqs.gf as gf
 
 from dmft.utils import archive_reader, h5_read_full_path, get_last_loop
 import dmft.logging.cat

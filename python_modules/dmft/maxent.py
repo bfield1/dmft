@@ -11,7 +11,8 @@ import matplotlib.pyplot as plt
 try:
     import triqs.gf as gf # Needed to import the DMFT data
 except ImportError:
-    warn("triqs not found. Some functions won't work.")
+    warn("triqs not found. Loading fake version")
+    import dmft.faketriqs.triqs.gf as gf
 try:
     from h5 import HDFArchive
 except ImportError:

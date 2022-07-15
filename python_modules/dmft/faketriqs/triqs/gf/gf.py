@@ -29,6 +29,7 @@ from . import meshes
 from . import plot 
 from . import gf_fnt
 from .gf_fnt import GfIndices
+from .mesh_point import MeshPoint
 
 # list of all the meshes
 all_meshes = (MeshProduct,) + tuple(c for c in list(meshes.__dict__.values()) if isinstance(c, type) and c.__name__.startswith('Mesh'))
@@ -118,7 +119,9 @@ class Gf(metaclass=AddMethod):
             # if indices is not a list of list, but a list, then the target_rank is assumed to be 2 !
             # backward compatibility only, it is not very logical (what about vector_valued gf ???)
             assert isinstance(indices, (type(None), list, GfIndices)), "Type of indices incorrect : should be None, Gfindices, list of str, or list of list of str"
-            if isinstance(indices, list):
+            # I added the not isinstance(indices, GfIndices) because I made
+            # GfIndices a subclass of list in my fake implementation.
+            if isinstance(indices, list) and not isinstance(indices, GfIndices):
                 if not isinstance(indices[0], list): indices = [indices, indices]
                 # indices : transform indices into string
                 indices = [ [str(x) for x in v] for v in indices]

@@ -10,9 +10,17 @@ import matplotlib.pyplot as plt
 import matplotlib.cm as cm
 import matplotlib.colors as mcolors
 
-import triqs.gf # Needed to import the DMFT data
-import triqs_maxent as me # Needed to import the Maxent data
-import triqs.utility.mpi as mpi
+try:
+    import triqs.gf as gf # Needed to import the DMFT data
+    import triqs.utility.mpi as mpi
+except ImportError:
+    warn("triqs not found. Loading fake version")
+    import dmft.faketriqs.triqs.gf as gf
+    import dmft.faketriqs.triqs.utility.mpi as mpi
+try:
+    import triqs_maxent as me # Needed to import the Maxent data
+except ImportError:
+    import dmft.faketriqs.triqs_maxent as me
 
 from dmft.maxent import MaxEnt
 from dmft.utils import h5_read_full_path, archive_reader
