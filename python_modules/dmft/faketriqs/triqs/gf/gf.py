@@ -177,7 +177,22 @@ class Gf(metaclass=AddMethod):
         assert self._data.shape[:self._rank] == tuple(len(m) for m in self._mesh.components) if isinstance (self._mesh, MeshProduct) else (len(self._mesh),)
     
     def density(self, *args, **kwargs):
-        raise NotImplementedError
+        r"""Compute the density matrix of the Greens function
+        Parameters
+        ----------
+        beta : float, optional
+            Used for finite temperature density calculation with ``MeshReFreq``.
+        Returns
+        -------
+        density_matrix : ndarray
+            Single particle density matrix with shape ``target_shape``.
+        Notes
+        -----
+        Only works for single mesh Greens functions with a, Matsubara,
+        real-frequency, or Legendre mesh.
+        """
+
+        return gf_fnt.density(self, *args, **kwargs)
     
     @property
     def rank(self):
@@ -342,13 +357,27 @@ class Gf(metaclass=AddMethod):
     
     # -------------- call -------------------------------------
     
-    def __call__(self, *args) : 
-        raise NotImplementedError
+    def __call__(self, x):
+        if isinstance(self.mesh, meshes.MeshImFreq):
+            # Integer x, Matsubara index
+            return self._data[self.mesh.index_to_linear(x)]
+        else:
+            raise NotImplementedError
     
     #----------------------------- other operations -----------------------------------
     
     def total_density(self, *args, **kwargs):
-        raise NotImplementedError
+        """Compute total density.
+        Returns
+        -------
+        density : float
+            Total density of the Greens function.
+        Notes
+        -----
+        Only implemented for single mesh Greens function with a,
+        Matsubara, real-frequency, or Legendre mesh.
+        """
+        return np.trace(gf_fnt.density(self, *args, **kwargs))
     
 	#-----------------------------  IO  -----------------------------------
     

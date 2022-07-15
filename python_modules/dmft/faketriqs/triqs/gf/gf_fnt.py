@@ -10,3 +10,6 @@ class GfIndices(list):
 
 from dmft.faketriqs.h5.formats import register_class
 register_class(GfIndices)
+
+def density(self, *args, **kwargs):
+    raise NotImplementedError("density requires some sort of integration which I'm not putting in the fake version")
