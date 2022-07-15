@@ -1,0 +1,2 @@
+class GfIndices(list):
+    pass

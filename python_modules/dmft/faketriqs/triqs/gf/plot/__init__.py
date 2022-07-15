@@ -18,8 +18,8 @@
 # Authors: Michel Ferrero, Olivier Parcollet, Nils Wentzell
 
 from . import one_var
-from triqs.gf.meshes import *
-from triqs.gf.mesh_product import MeshProduct
+from dmft.faketriqs.triqs.gf.meshes import *
+from dmft.faketriqs.triqs.gf.mesh_product import MeshProduct
 
 def dispatcher(g) :
     """ given g, pick up the right plotting function"""

@@ -1,12 +1,36 @@
+# Copyright (c) 2017-2018 Commissariat à l'énergie atomique et aux énergies alternatives (CEA)
+# Copyright (c) 2017-2018 Centre national de la recherche scientifique (CNRS)
+# Copyright (c) 2018-2020 Simons Foundation
+#
+# This program is free software: you can redistribute it and/or modify
+# it under the terms of the GNU General Public License as published by
+# the Free Software Foundation, either version 3 of the License, or
+# (at your option) any later version.
+#
+# This program is distributed in the hope that it will be useful,
+# but WITHOUT ANY WARRANTY; without even the implied warranty of
+# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+# GNU General Public License for more details.
+#
+# You may obtain a copy of the License at
+#     https:#www.gnu.org/licenses/gpl-3.0.txt
+#
+# Authors: Michel Ferrero, Manuel, Olivier Parcollet, Hugo U. R. Strand, Nils Wentzell
+# This version with edits (mostly stuff removed) by Bernard Field
+
 import itertools, warnings, numbers
 from functools import reduce # Valid in Python 2.6+, required in Python 3
 import operator
 import numpy as np
 from . import mesh_product
 from .mesh_product import MeshProduct
-from triqs.plot.protocol import clip_array
+from dmft.faketriqs.triqs.plot.protocol import clip_array
 from . import meshes
 from . import plot 
+from . import gf_fnt
+
+# list of all the meshes
+all_meshes = (MeshProduct,) + tuple(c for c in list(meshes.__dict__.values()) if isinstance(c, type) and c.__name__.startswith('Mesh'))
 
 # For IO later
 def call_factory_from_dict(cl,name, dic):
@@ -29,6 +53,10 @@ class AddMethod(type):
         for a in [f for f in list(gf_fnt.__dict__.values()) if callable(f)]:
             if not hasattr(cls, a.__name__):
                 setattr(cls, a.__name__, add_method_helper(a,cls))
+
+class Idx:
+    def __init__(self, *x):
+        self.idx = x[0] if len(x)==1 else x
 
 class Gf(metaclass=AddMethod):
     r""" TRIQS Greens function container class
@@ -63,8 +91,8 @@ class Gf(metaclass=AddMethod):
     """
     
     _hdf5_data_scheme_ = 'Gf'
-	
-	def __init__(self, **kw): # enforce keyword only policy 
+    
+    def __init__(self, **kw): # enforce keyword only policy 
         
         #print "Gf construct args", kw
 
@@ -130,32 +158,197 @@ class Gf(metaclass=AddMethod):
                 assert (d == i), "Indices are of incorrect size. Data size is %s while indices size is %s"%(d,i)
             # Now indices are set, and are always a GfIndices object, with the
             # correct size
-           
-            # NB : at this stage, enough checks should have been made in Python in order for the C++ view 
-            # to be constructed without any INTERNAL exceptions.
-            # Set up the C proxy for call operator for speed. The name has to
-            # agree with the wrapped_aux module, it is of only internal use
-            s = '_x_'.join( m.__class__.__name__[4:] for m in self.mesh._mlist) if isinstance(mesh, MeshProduct) else self._mesh.__class__.__name__[4:]
-            proxyname = 'CallProxy%s_%s%s'%(s, self.target_rank,'_R' if data.dtype == np.float64 else '') 
-            try:
-                self._c_proxy = all_call_proxies.get(proxyname, CallProxyNone)(self)
-            except:
-                self._c_proxy = None
-
+            
             # check all invariants. Debug.
             self.__check_invariants()
+            
 
         delegate(self, **kw)
-	
-	def __repr__(self):
+    
+    def __check_invariants(self):
+        """Check various invariant. Mainly for debug"""
+        # rank
+        assert self.rank == self._mesh.rank if isinstance (self._mesh, MeshProduct) else 1
+        # The mesh size must correspond to the size of the data
+        assert self._data.shape[:self._rank] == tuple(len(m) for m in self._mesh.components) if isinstance (self._mesh, MeshProduct) else (len(self._mesh),)
+    
+    def density(self, *args, **kwargs):
+        raise NotImplementedError
+    
+    @property
+    def rank(self):
+        r"""int : The mesh rank (number of meshes)."""
+        return self._rank
+
+    @property
+    def target_rank(self): 
+        """int : The rank of the target space."""
+        return self._target_rank
+
+    @property
+    def target_shape(self): 
+        """(int, ...) : The shape of the target space."""
+        return self._target_shape
+
+    @property
+    def mesh(self):
+        """gf_mesh : The mesh of the Greens function."""
+        return self._mesh
+
+    @property
+    def data(self):
+        """ndarray : Raw data of the Greens function.
+
+           Storage convention is ``self.data[x,y,z, ..., n0,n1,n2]``
+           where ``x,y,z`` correspond to the mesh variables (the mesh) and 
+           ``n0, n1, n2`` to the ``target_space``.
+        """
+        return self._data
+
+    @property
+    def indices(self):
+        """GfIndices : The index object of the target space."""
+        return self._indices
+
+    def copy(self) : 
+        """Deep copy of the Greens function.
+
+        Returns
+        -------
+        G : Gf
+            Copy of self.
+        """
+        return Gf (mesh = self._mesh.copy(), 
+                   data = self._data.copy(), 
+                   indices = self._indices.copy(), 
+                   name = self.name)
+
+    def copy_from(self, another):
+        """Copy the data of another Greens function into self."""
+        self._mesh.copy_from(another.mesh)
+        assert self._data.shape == another._data.shape, "Shapes are incompatible: " + str(self._data.shape) + " vs " + str(another._data.shape)
+        self._data[:] = another._data[:]
+        self._indices = another._indices.copy()
+        self.__check_invariants()
+    
+    def __repr__(self):
         return "Greens Function %s with mesh %s and target_shape %s: \n"%(self.name, self.mesh, self.target_shape)
  
     def __str__ (self): 
         return self.__repr__()
 	
+    #--------------  Bracket operator []  -------------------------
+    
+    _full_slice = slice(None, None, None) 
+
+    def __getitem__(self, key):
+
+        # First case : g[:] = RHS ... will be g << RHS
+        if key == self._full_slice:
+            return self
+
+        # Only one argument. Must be a mesh point, idx or slicing rank1 target space
+        if not isinstance(key, tuple):
+            if isinstance(key, (MeshPoint, Idx)):
+                return self.data[key.linear_index if isinstance(key, MeshPoint) else self._mesh.index_to_linear(key.idx)]
+            else: key = (key,)
+
+        # If all arguments are MeshPoint, we are slicing the mesh or evaluating
+        if all(isinstance(x, (MeshPoint, Idx)) for x in key):
+            assert len(key) == self.rank, "wrong number of arguments in [ ]. Expected %s, got %s"%(self.rank, len(key))
+            return self.data[tuple(x.linear_index if isinstance(x, MeshPoint) else m.index_to_linear(x.idx) for x,m in zip(key,self._mesh._mlist))]
+
+        # If any argument is a MeshPoint, we are slicing the mesh or evaluating
+        elif any(isinstance(x, (MeshPoint, Idx)) for x in key):
+            assert len(key) == self.rank, "wrong number of arguments in [[ ]]. Expected %s, got %s"%(self.rank, len(key))
+            assert all(isinstance(x, (MeshPoint, Idx, slice)) for x in key), "Invalid accessor of Greens function, please combine only MeshPoints, Idx and slice"
+            assert self.rank > 1, "Internal error : impossible case" # here all == any for one argument
+            mlist = self._mesh._mlist 
+            for x in key:
+                if isinstance(x, slice) and x != self._full_slice: raise NotImplementedError("Partial slice of the mesh not implemented")
+            # slice the data
+            k = tuple(x.linear_index if isinstance(x, MeshPoint) else m.index_to_linear(x.idx) if isinstance(x, Idx) else x for x,m in zip(key,mlist)) + self._target_rank * (slice(0, None),)
+            dat = self._data[k]
+            # list of the remaining lists
+            mlist = [m for i,m in filter(lambda tup_im : not isinstance(tup_im[0], (MeshPoint, Idx)), zip(key, mlist))]
+            assert len(mlist) > 0, "Internal error" 
+            mesh = MeshProduct(*mlist) if len(mlist)>1 else mlist[0]
+            sing = None 
+            r = Gf(mesh = mesh, data = dat)
+            r.__check_invariants()
+            return r
+
+        # In all other cases, we are slicing the target space
+        else : 
+            assert self.target_rank == len(key), "wrong number of arguments. Expected %s, got %s"%(self.target_rank, len(key))
+
+            # Assume empty indices (scalar_valued)
+            ind = GfIndices([])
+
+            # String access: transform the key into a list integers
+            if all(isinstance(x, str) for x in key):
+                warnings.warn("The use of string indices is deprecated", DeprecationWarning)
+                assert self._indices, "Got string indices, but I have no indices to convert them !"
+                key_tpl = tuple(self._indices.convert_index(s,i) for i,s in enumerate(key)) # convert returns a slice of len 1
+
+            # Slicing with ranges -> Adjust indices
+            elif all(isinstance(x, slice) for x in key): 
+                key_tpl = tuple(key)
+                ind = GfIndices([ v[k]  for k,v in zip(key_tpl, self._indices.data)])
+
+            # Integer access
+            elif all(isinstance(x, int) for x in key):
+                key_tpl = tuple(key)
+
+            # Invalid Access
+            else:
+                raise NotImplementedError("Partial slice of the target space not implemented")
+
+            dat = self._data[ self._rank*(slice(0,None),) + key_tpl ]
+            r = Gf(mesh = self._mesh, data = dat, indices = ind)
+
+            r.__check_invariants()
+            return r
+
+    def __setitem__(self, key, val):
+
+        # Only one argument and not a slice. Must be a mesh point, Idx
+        if isinstance(key, (MeshPoint, Idx)):
+            self.data[key.linear_index if isinstance(key, MeshPoint) else self._mesh.index_to_linear(key.idx)] = val
+
+        # If all arguments are MeshPoint, we are slicing the mesh or evaluating
+        elif isinstance(key, tuple) and all(isinstance(x, (MeshPoint, Idx)) for x in key):
+            assert len(key) == self.rank, "wrong number of arguments in [ ]. Expected %s, got %s"%(self.rank, len(key))
+            self.data[tuple(x.linear_index if isinstance(x, MeshPoint) else m.index_to_linear(x.idx) for x,m in zip(key,self._mesh._mlist))] = val
+
+        else:
+            self[key] << val
+    
+    # -------------- Various operations -------------------------------------
+    
+    @property
+    def real(self): 
+        """Gf : A Greens function with a view of the real part."""
+        return Gf(mesh = self._mesh, data = self._data.real, name = ("Re " + self.name) if self.name else '') 
+
+    @property
+    def imag(self): 
+        """Gf : A Greens function with a view of the imaginary part."""
+        return Gf(mesh = self._mesh, data = self._data.imag, name = ("Im " + self.name) if self.name else '') 
+    
+    # -------------- call -------------------------------------
+    
+    def __call__(self, *args) : 
+        raise NotImplementedError
+    
+    #----------------------------- other operations -----------------------------------
+    
+    def total_density(self, *args, **kwargs):
+        raise NotImplementedError
+    
 	#-----------------------------  IO  -----------------------------------
     
-	def __reduce__(self):
+    def __reduce__(self):
         return call_factory_from_dict, (Gf, self.name, self.__reduce_to_dict__())
 
     def __reduce_to_dict__(self):
@@ -177,7 +370,10 @@ class Gf(metaclass=AddMethod):
         # frequencies, we need to duplicate it for negative freq.
         # Same code as in the C++ h5_read for gf.
         need_unfold = isinstance(r.mesh, meshes.MeshImFreq) and r.mesh.positive_only() 
-        return r if not need_unfold else wrapped_aux._make_gf_from_real_gf(r)
+        if need_unfold:
+            raise NotImplementedError
+        #return r if not need_unfold else wrapped_aux._make_gf_from_real_gf(r)
+        return r
 	
 	#-----------------------------plot protocol -----------------------------------
 

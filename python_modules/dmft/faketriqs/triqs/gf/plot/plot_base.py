@@ -20,7 +20,7 @@
 
 import numpy
 from warnings import warn
-from triqs.plot.protocol import clip_array
+from dmft.faketriqs.triqs.plot.protocol import clip_array
 
 def plot_base(self, opt_dict, xlabel, ylabel, X, allow_spectral_mode=False):
     r"""
