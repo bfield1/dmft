@@ -387,6 +387,10 @@ if __name__ == "__main__":
             help="Substrate bandwidth. Only use if want a substrate.")
     parser.add_argument('-d','--density', action='store_true',
             help="Record the density matrix.")
+    parser.add_argument('--spin', action='store_true',
+            help="Measure the dynamical spin-spin susceptibility.")
+    parser.add_argument('--motmi', type=int, default=100,
+            help="measure_O_tau_min_ins")
 
     subparsers = parser.add_subparsers(dest='lattice',
             help="Which lattice to solve. Or run a continuation job (which ignores all parameters except --archive and --nloops).")
@@ -428,7 +432,7 @@ if __name__ == "__main__":
     if continuation and args.newparams:
         changed = True
     # Check the existence of the archive and if we should overwrite it.
-    if os.path.isfile(args.archive) and not args.overwrite and not continuation:
+    if os.path.isfile(args.archive) and not args.overwrite and not continuation and mpi.is_master_node():
         # It might not have DMFT data in it, though, just some logs. So check
         with HDFArchive(args.archive, 'r') as A:
             if 'loop-000' in A:
@@ -485,6 +489,12 @@ if __name__ == "__main__":
                 use_norm_as_weight=args.density)
         if args.nl is not None:
             hubbard.solver_params['measure_G_l'] = True
+        # Dynamical spin susceptibility
+        # https://triqs.github.io/cthyb/latest/guide/dynamic_susceptibility_notebook.html
+        if args.spin:
+            Sz = 0.5 * (op.n('up',0) - op.n('down',0))
+            hubbard.solver_params['measure_O_tau'] = (Sz, Sz)
+            hubbard.solver_params('measure_O_tau_min_ins'] = args.motmi
     # If a new job, set the substrate params
     if substrate and not continuation:
         hubbard.set_substrate(args.bandwidth)
