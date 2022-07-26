@@ -494,7 +494,7 @@ if __name__ == "__main__":
         if args.spin:
             Sz = 0.5 * (op.n('up',0) - op.n('down',0))
             hubbard.solver_params['measure_O_tau'] = (Sz, Sz)
-            hubbard.solver_params('measure_O_tau_min_ins'] = args.motmi
+            hubbard.solver_params['measure_O_tau_min_ins'] = args.motmi
     # If a new job, set the substrate params
     if substrate and not continuation:
         hubbard.set_substrate(args.bandwidth)
