@@ -302,4 +302,60 @@ def covariance_from_archive(archive, loops, block='up', Gf='G_tau', real=False,
     # Get the covariance matrix
     return covariance(Glist, real, iL, iR)
 
+def standard_deviation(Glist, real=False, iL=0, iR=0):
+    """
+    Gives the covariance matrix from a list of Green's functions
 
+    Inputs:
+        Glist - list-like of Green's functions. Must each have same length (N).
+        real - Boolean. Whether to keep just the real part of Glist.
+            Useful for some Green's functions (e.g. G_tau) which are fully real
+            but use complex numbers anyway.
+        iL, iR - indices
+    Output:
+        std - (N,) numeric np.array, standard deviation at each point
+    """
+    # Extract the data. dtype catches the case of inhomogeneous data
+    if real:
+        m = np.array([G.data.real[:,iL,iR] for G in Glist], dtype=float)
+    else:
+        m = np.array([G.data[:,iL,iR] for G in Glist], dtype=complex)
+    # Get the standard deviation
+    return np.std(m, axis=0)
+
+@archive_reader
+def standard_deviation_from_archive(archive, loops, block='up', Gf='G_tau', real=False,
+        iL=0, iR=0):
+    """
+    Gets the standard deviation of the Green's functions from an archive
+
+    Useful for MaxEnt
+
+    Inputs:
+        archive - str pointing to hdf5 file made by dmft, or HDFArchive
+        loops - positive int, number of loops to sample G from
+        block - str, which Green's function block to read
+        Gf - str, which Green's function to read
+        real - Boolean. Whether to keep just the real part of Glist.
+            Useful for some Green's functions (e.g. G_tau) which are fully real
+            but use complex numbers anyway.
+        iL, iR - indices
+    Output:
+        std - (N,) numeric np.array, standard deviation at each point
+    """
+    # What's the last array?
+    last = get_last_loop(archive)
+    # Convert to index, trimming off prefix from 'loop-###'
+    last = int(last[5:])
+    # Collect the Green's functions
+    Glist = []
+    for i in range(loops):
+        if last - i < 0:
+            warnings.warn("Requested more loops than available.")
+            # Correct the number of loops
+            loops = i
+            break
+        # Load G
+        Glist.append(archive[f'loop-{last-i:03d}/{Gf}'][block])
+    # Get the standard deviation
+    return standard_deviation(Glist, real, iL, iR)

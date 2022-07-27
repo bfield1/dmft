@@ -583,6 +583,9 @@ def write_metadata(archive, name='code'):
 
 
 if __name__ == "__main__":
+    # Put this import here to avoid circular import
+    from dmft.measure import standard_deviation_from_archive
+    # Command line argument parsing
     parser = argparse.ArgumentParser(description="Does a MaxEnt calculation ")
     parser.add_argument("input", help="Input archive containing G_tau from DMFT.")
     parser.add_argument("output", nargs="?",
@@ -606,6 +609,8 @@ if __name__ == "__main__":
             help="Take G_tau from these loops and do MaxEnt on each of them (defaults to only the last one).")
     parser.add_argument('-s','--substrate', action='store_true',
             help="Read G_sub_tau instead of G_tau")
+    parser.add_argument('--std', type=int,
+            help="Rather than using a fixed error, read the standard deviation of the last few G_tau's.")
     args = parser.parse_args()
     
     if args.output is None:
@@ -652,9 +657,14 @@ if __name__ == "__main__":
                 warn("Must specify all of omin, omax, and nomega; omega_mesh unset")
         elif args.omax is not None or args.nomega is not None:
             warn("Must specify all of omin, omax, and nomega; omega_mesh unset")
-        # Set outher MaxEnt data
+        # Set other MaxEnt data
         maxent.set_G_tau(G_tau)
-        maxent.set_error(args.error)
+        if args.std is not None:
+            error = standard_deviation_from_archive(args.input, args.std,
+                        real=True, Gf='G_tau')
+        else:
+            error = args.error
+        maxent.set_error(error)
         # Record the metadata
         if mpi.is_master_node():
             maxent.write_metadata(args.output, name)
