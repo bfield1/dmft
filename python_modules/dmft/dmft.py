@@ -149,7 +149,16 @@ class DMFTHubbard:
             for name, g0 in self.S.G0_iw:
                 g0 << gf.inverse(gf.inverse(G[name]) + sigma[name])
             # Run the solver
-            self.S.solve(h_int=self.h_int, **self.solver_params)
+            if 'random_seed' in self.solver_params:
+                # I don't advise setting a fixed random seed in solver_params,
+                # because it probably won't be different on each mpi rank
+                self.S.solve(h_int=self.h_int, **self.solver_params)
+            else:
+                # I'm adding a slight change to the random seed in each loop
+                # This ensures that different loops use different random numbers
+                # But also allows consistency.
+                self.S.solve(h_int=self.h_int, **self.solver_params,
+                      random_seed=34788+928374*mpi.rank+17*(i_loop+prior_loops))
             # Symmetrise output
             if enforce_spins:
                 g = self.S.G_iw['up'].copy()
