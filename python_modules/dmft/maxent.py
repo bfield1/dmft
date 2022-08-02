@@ -131,6 +131,8 @@ class MaxEnt():
             self.scale_alpha = 1
         if amin is not None:
             self.generate_alpha(amin, amax, nalpha)
+        # Whether to save the Default Model
+        self._save_D = False
     @property
     def alpha(self):
         """The alpha mesh to sample MaxEnt along"""
@@ -179,6 +181,29 @@ class MaxEnt():
         """
         self.omega = cls(omin, omax, nomega)
         return self.omega
+    @property
+    def D(self):
+        """The default model"""
+        return self.tm.D
+    @D.setter
+    def D(self, value):
+        self.tm.D = value
+        # The Default Model is not saved with MaxEntResultsData,
+        # so we need to save it separately. But only bother if not the default
+        self._save_D = True
+    def set_Gaussian_D(self, sigma, x0=0):
+        """
+        Sets the default model to be a Gaussian. Requires omega to be set.
+
+        Inputs: sigma - float, Gaussian width
+            x0 - float, center of peak
+        Output: 1D array of len(omega), Default model
+        """
+        w = np.array(self.omega)
+        # A normalized Gaussian of width sigma centered on x0
+        f = 1/(sigma * np.sqrt(2*np.pi)) * np.exp(-(w-x0)**2/(2*sigma**2))
+        self.D = f
+        return f
     def set_G_tau(self, G_tau):
         """Sets the G_tau for MaxEnt"""
         self.tm.set_G_tau(G_tau)
@@ -264,6 +289,9 @@ class MaxEnt():
             else:
                 err = self.tm.err
             h5_write_full_path(archive, err, name+'/maxent_error')
+        if self._save_D:
+            # The Default Model, not default value
+            h5_write_full_path(archive, self.D, name+'/default_model')
     # Now we want some plotting scripts to show the results
     def get_spectrum(self, choice=None):
         """
@@ -611,6 +639,8 @@ if __name__ == "__main__":
             help="Read G_sub_tau instead of G_tau")
     parser.add_argument('--std', type=int,
             help="Rather than using a fixed error, read the standard deviation of the last few G_tau's.")
+    parser.add_argument('-g','--gaussian', type=float,
+            help="Rather than a flat default model, use a Gaussian of given width.")
     args = parser.parse_args()
     
     if args.output is None:
@@ -657,6 +687,9 @@ if __name__ == "__main__":
                 warn("Must specify all of omin, omax, and nomega; omega_mesh unset")
         elif args.omax is not None or args.nomega is not None:
             warn("Must specify all of omin, omax, and nomega; omega_mesh unset")
+        # Generate the default model
+        if args.gaussian is not None:
+            maxent.set_Gaussian_D(args.gaussian)
         # Set other MaxEnt data
         maxent.set_G_tau(G_tau)
         if args.std is not None:
