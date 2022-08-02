@@ -178,28 +178,50 @@ class DMFTHubbard:
                     for name in ['up','down']:
                         self.S.G_l[name] << g
             # record results
-            if archive is not None and mpi.is_master_node():
-                with HDFArchive(archive,'a') as A:
-                    key = 'loop-{:03d}'.format(i_loop+prior_loops)
-                    A.create_group(key)
-                    SG = A[key]
-                    SG['G_iw'] = self.S.G_iw
-                    SG['Sigma_iw'] = self.S.Sigma_iw
-                    SG['G0_iw'] = self.S.G0_iw
-                    SG['G_tau'] = self.S.G_tau
-                    if 'measure_G_l' in self.solver_params and self.solver_params['measure_G_l']:
-                        SG['G_l'] = self.S.G_l
-                    SG['average_sign'] = self.S.average_sign
-                    if 'measure_density_matrix' in self.solver_params and self.solver_params['measure_density_matrix']:
-                        SG['density_matrix'] = self.S.density_matrix
-                        SG['h_loc_diagonalization'] = self.S.h_loc_diagonalization
-                    if 'measure_O_tau' in self.solver_params:
-                        SG['O_tau'] = self.S.O_tau
-                    if save_metadata_per_loop:
-                        self.record_metadata(SG)
+            self._record_loop_data(archive, i_loop+prior_loops, save_metadata_per_loop)
             self.last_loop = i_loop + prior_loops
         if mpi.is_master_node():
             print("Finished DMFT loop.")
+    #
+    def _record_loop_data(self, archive, i_loop, *args, **kwargs):
+        """
+        Helper function for loop. Writes loop data to archive
+
+        Inputs: archive - str, name of h5 archive
+            i_loop - int, loop number to record to
+            And any other arguments to pass on the _record_loop_data_inner.
+        """
+        if archive is not None and mpi.is_master_node():
+            with HDFArchive(archive,'a') as A:
+                key = 'loop-{:03d}'.format(i_loop)
+                A.create_group(key)
+                self._record_loop_data_inner(A[key], *args, **kwargs)
+    def _record_loop_data_inner(self, SG, save_metadata):
+        """
+        Helper function for _record_loop_data
+
+        For subclasses which modify the loop, you can call this with super().
+
+        Inputs: SG - HDFArchiveGroup, the group to write to
+            save_metadata - Boolean, whether to save metadata
+        """
+        SG['G_iw'] = self.S.G_iw
+        SG['Sigma_iw'] = self.S.Sigma_iw
+        SG['G0_iw'] = self.S.G0_iw
+        SG['G_tau'] = self.S.G_tau
+        if 'measure_G_l' in self.solver_params and self.solver_params['measure_G_l']:
+            SG['G_l'] = self.S.G_l
+        SG['average_sign'] = self.S.average_sign
+        if 'measure_density_matrix' in self.solver_params and self.solver_params['measure_density_matrix']:
+            SG['density_matrix'] = self.S.density_matrix
+            SG['h_loc_diagonalization'] = self.S.h_loc_diagonalization
+        if 'measure_pert_order' in self.solver_params and self.solver_params['measure_pert_order']:
+            SG['perturbation_order'] = self.S.perturbation_order
+            SG['perturbation_order_total'] = self.S.perturbation_order_total
+        if 'measure_O_tau' in self.solver_params:
+            SG['O_tau'] = self.S.O_tau
+        if save_metadata:
+            self.record_metadata(SG)
     @classmethod
     @dmft.utils.archive_reader2
     def load(cls, archive):
@@ -414,6 +436,8 @@ if __name__ == "__main__":
             help="measure_O_tau_min_ins")
     parser.add_argument('--niw', type=int, default=1025,
             help="Number of Matsubara frequencies used for the Green's function.")
+    parser.add_argument('-p','--perturbation', action='store_true',
+            help="Measure the perturbation order histograms.")
 
     subparsers = parser.add_subparsers(dest='lattice',
             help="Which lattice to solve. Or run a continuation job (which ignores all parameters except --archive and --nloops).")
@@ -518,6 +542,8 @@ if __name__ == "__main__":
             Sz = 0.5 * (op.n('up',0) - op.n('down',0))
             hubbard.solver_params['measure_O_tau'] = (Sz, Sz)
             hubbard.solver_params['measure_O_tau_min_ins'] = args.motmi
+        if args.perturbation:
+            hubbard.solver_params['measure_pert_order'] = args.perturbation
     # If a new job, set the substrate params
     if substrate and not continuation:
         hubbard.set_substrate(args.bandwidth)

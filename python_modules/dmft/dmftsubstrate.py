@@ -136,33 +136,19 @@ class DMFTHubbardSubstrate(dmft.dmft.DMFTHubbard):
                     for name in ['up','down']:
                         self.S.G_l[name] << g
             # record results
-            if archive is not None and mpi.is_master_node():
-                with HDFArchive(archive,'a') as A:
-                    key = 'loop-{:03d}'.format(i_loop+prior_loops)
-                    A.create_group(key)
-                    SG = A[key]
-                    SG['G_iw'] = self.S.G_iw
-                    SG['Sigma_iw'] = self.S.Sigma_iw
-                    SG['G0_iw'] = self.S.G0_iw
-                    SG['G_tau'] = self.S.G_tau
-                    if 'measure_G_l' in self.solver_params and self.solver_params['measure_G_l']:
-                        SG['G_l'] = self.S.G_l
-                    SG['average_sign'] = self.S.average_sign
-                    if 'measure_density_matrix' in self.solver_params and self.solver_params['measure_density_matrix']:
-                        SG['density_matrix'] = self.S.density_matrix
-                        SG['h_loc_diagonalization'] = self.S.h_loc_diagonalization
-                    if 'measure_O_tau' in self.solver_params:
-                        SG['O_tau'] = self.S.O_tau
-                    if save_metadata_per_loop:
-                        self.record_metadata(SG)
-                    if save_Gsub:
-                        SG['G_sub_iw'] = self.Gsub_full()
-                        g = self.S.G_tau.copy()
-                        g << gf.Fourier(self.Gsub_full())
-                        SG['G_sub_tau'] = g
+            self._record_loop_data(archive, i_loop+prior_loops,
+                    save_metadata=save_metadata_per_loop, save_Gsub=save_Gsub)
             self.last_loop = i_loop + prior_loops
         if mpi.is_master_node():
             print("Finished DMFT loop.")
+    def _record_loop_data_inner(self, SG, save_metadata, save_Gsub):
+        super()._record_loop_data_inner(SG, save_metadata)
+        if save_Gsub:
+            SG['G_sub_iw'] = self.Gsub_full()
+            g = self.S.G_tau.copy()
+            g << gf.Fourier(self.Gsub_full())
+            SG['G_sub_tau'] = g
+
     def Gsub_full(self):
         """
         Return the full substrate Green's function in ImFreq.
