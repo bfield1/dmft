@@ -14,6 +14,53 @@ from dmft.utils import h5_read_full_path, archive_reader
 from dmft.measure import quasiparticle_residue_from_archive, density_from_archive, effective_spin_from_archive, integrate_O_tau_from_archive
 from dmft.plot_loops import wrap_plot
 
+def sweep_plotter(ymin=None, ymax=None, ylabel=''):
+    """
+    Wrapper for plotting values from a sweep across different archives
+
+    func: archive -> float
+    ymin, ymax - floats. Overwrite the default values
+    ylabel - str. Overwrite the default values
+    """
+    # Uses the decorator factory idiom. The sweep_plotter() decorator takes
+    # some parameters then returns a proper decorator.
+    def decorator(func):
+        def plotter(archive_list, vals=None, ax=None, color=None, xlabel='', marker='o', ymin=ymin, ymax=ymax, ylabel=ylabel, **kwargs):
+            """
+            Inputs:
+                archive_list - list of strs pointing to h5 archives written by dmft
+                vals - optional, list of numbers of same length as archive_list.
+                    Used for x-axis in plotting.
+                ax - matplotlib Axes to plot to
+                color - matplotlib colour. Optional.
+                xlabel - string. Label for x-axis. Default ''
+                marker - matplotlib marker specification. Default 'o'
+                ymin - number.
+                ymax - number.
+                ylabel - str
+            """
+            # Verify that lengths match
+            if vals is not None and len(archive_list) != len(vals):
+                raise ValueError("Length of archive_list and vals must match")
+            # Load the data
+            data = [func(A) for A in archive_list]
+            # If vals is None, assume we want sequential integers
+            if vals is None:
+                vals = np.arange(0,len(archive_list))
+            # Plot
+            ax.plot(vals, data, linestyle='None', color=color, marker=marker)
+            ax.set_ylim(ymin, ymax)
+            # Annotate
+            ax.set_xlabel(xlabel)
+            ax.set_ylabel(ylabel)
+        # Update the documentation to fit the original function
+        # As I want to concatenate docstrings, I need to do it
+        # manually rather than using functools.wrap
+        plotter.__doc__ = func.__doc__ + plotter.__doc__
+        plotter.__name__ = func.__name__
+        return plotter
+    return decorator
+
 @wrap_plot
 def plot_spectrum(archive_list, colors, vals=None, choice='Chi2Curvature', ax=None, colorbar=True, legend=False, offset=0, legendlabel='', xmin=None, xmax=None, block=None):
     """
@@ -131,122 +178,37 @@ def plot_spectrum(archive_list, colors, vals=None, choice='Chi2Curvature', ax=No
         fig.colorbar(cm.ScalarMappable(cmap=cmap, norm=norm), ax=ax,
                 label=legendlabel)
 
-@wrap_plot
-def plot_density(archive_list, vals=None, ax=None, color=None, xlabel='', marker='o', ymin=0, ymax=2, halfline=True):
-    """
-    Plots the density from different archives in a scatter plot
 
-    Inputs:
-        archive_list - list of strs pointing to h5 archives written by dmft
-        vals - optional, list of numbers of same length as archive_list.
-            Used for x-axis in plotting.
-        color - matplotlib colour. Optional.
-        xlabel - string. Label for x-axis. Default ''
-        marker - matplotlib marker specification. Default 'o'
-        ymin - number. Default 0
-        ymax - number. Default 2
+@sweep_plotter(ymin=0, ymax=2, ylabel='Density $n$')
+def _help_plot_density(A):
+    """Plots the density from different archives"""
+    return density_from_archive(A)
+@wrap_plot
+def plot_density(*args, ax=None, halfline=True, **kwargs):
+    """
+    Keyword Argument:
         halfline - Boolean. Draw a horizontal line at density=1? Default True.
     """
-    # Verify that lengths match
-    if vals is not None and len(archive_list) != len(vals):
-        raise ValueError("Length of archive_list and vals must match")
-    # Load the density
-    densities = [density_from_archive(A) for A in archive_list]
-    # If vals is None, assume we want sequential integers
-    if vals is None:
-        vals = np.arange(0,len(archive_list))
-    # Plot
-    ax.plot(vals, densities, linestyle='None', color=color, marker=marker)
-    ax.set_ylim(ymin, ymax)
+    _help_plot_density(*args, ax=ax, **kwargs)
     if halfline:
         ax.axhline(1, color='k', linewidth=1)
-    ax.set_xlabel(xlabel)
-    ax.set_ylabel(r'Density $n$')
+plot_density.__doc__ = _help_plot_density.__doc__ + plot_density.__doc__
 
 @wrap_plot
-def plot_quasiparticle_residue(archive_list, vals=None, ax=None, color=None, xlabel='', marker='o', ymin=0, ymax=1):
-    """
-    Plots the quasiparticle residue from different archives in a scatter plot
-
-    Inputs:
-        archive_list - list of strs pointing to h5 archives written by dmft
-        vals - optional, list of numbers of same length as archive_list.
-            Used for x-axis in plotting.
-        color - matplotlib colour. Optional.
-        xlabel - string. Label for x-axis. Default ''
-        marker - matplotlib marker specification. Default 'o'
-        ymin - number. Default 0
-        ymax - number. Default 1
-    """
-    # Verify that lengths match
-    if vals is not None and len(archive_list) != len(vals):
-        raise ValueError("Length of archive_list and vals must match")
-    # Load the Z
-    Zs = [quasiparticle_residue_from_archive(A) for A in archive_list]
-    # If vals is None, assume we want sequential integers
-    if vals is None:
-        vals = np.arange(0,len(archive_list))
-    # Plot
-    ax.plot(vals, Zs, linestyle='None', color=color, marker=marker)
-    ax.set_ylim(ymin, ymax)
-    ax.set_xlabel(xlabel)
-    ax.set_ylabel(r'Quasiparticle Residue $Z$')
+@sweep_plotter(ymin=0, ymax=1, ylabel=r'Quasiparticle Residue $Z$')
+def plot_quasiparticle_residue(A):
+    """Plots the quasiparticle residue from different archives"""
+    return quasiparticle_residue_from_archive(A)
 
 @wrap_plot
-def plot_effective_spin(archive_list, vals=None, ax=None, color=None, xlabel='', marker='o', ymin=0, ymax=0.5):
-    """
-    Plots the effective spin from different archives in a scatter plot
-
-    Inputs:
-        archive_list - list of strs pointing to h5 archives written by dmft
-        vals - optional, list of numbers of same length as archive_list.
-            Used for x-axis in plotting.
-        color - matplotlib colour. Optional.
-        xlabel - string. Label for x-axis. Default ''
-        marker - matplotlib marker specification. Default 'o'
-        ymin - number. Default 0
-        ymax - number. Default 0.5
-    """
-    # Verify that lengths match
-    if vals is not None and len(archive_list) != len(vals):
-        raise ValueError("Length of archive_list and vals must match")
-    # Load the effective spin
-    spins = [effective_spin_from_archive(A) for A in archive_list]
-    # If vals is None, assume we want sequential integers
-    if vals is None:
-        vals = np.arange(0,len(archive_list))
-    # Plot
-    ax.plot(vals, spins, linestyle='None', color=color, marker=marker)
-    ax.set_ylim(ymin, ymax)
-    ax.set_xlabel(xlabel)
-    ax.set_ylabel(r'Effective spin')
+@sweep_plotter(ymin=0, ymax=0.5, ylabel='Effective spin')
+def plot_effective_spin(A):
+    """Plots the effective spin from different archives"""
+    return effective_spin_from_archive(A)
 
 @wrap_plot
-def plot_O_tau(archive_list, vals=None, ax=None, color=None, xlabel='', marker='o', ymin=0, ymax=0.25, ylabel=r'$\chi$'):
-    """
-    Plots the integrated O_tau (e.g. spin susceptibiltiy) from different archives in a scatter plot
+@sweep_plotter(ymin=0, ymax=0.25, ylabel=r'$\chi$')
+def plot_O_tau(A):
+    """Plots the integrated O_tau (e.g. spin susceptibility) from different archives"""
+    return integrate_O_tau_from_archive(A)
 
-    Inputs:
-        archive_list - list of strs pointing to h5 archives written by dmft
-        vals - optional, list of numbers of same length as archive_list.
-            Used for x-axis in plotting.
-        color - matplotlib colour. Optional.
-        xlabel - string. Label for x-axis. Default ''
-        marker - matplotlib marker specification. Default 'o'
-        ymin - number. Default 0
-        ymax - number. Default 0.25
-        ylabel - string. Label for y-axis. Default r'$\chi$'
-    """
-    # Verify that lengths match
-    if vals is not None and len(archive_list) != len(vals):
-        raise ValueError("Length of archive_list and vals must match")
-    # Load the data
-    data = [integrate_O_tau_from_archive(A) for A in archive_list]
-    # If vals is None, assume we want sequential integers
-    if vals is None:
-        vals = np.arange(0,len(archive_list))
-    # Plot
-    ax.plot(vals, data, linestyle='None', color=color, marker=marker)
-    ax.set_ylim(ymin, ymax)
-    ax.set_xlabel(xlabel)
-    ax.set_ylabel(ylabel)
