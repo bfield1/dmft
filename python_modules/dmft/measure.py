@@ -304,7 +304,7 @@ def covariance_from_archive(archive, loops, block='up', Gf='G_tau', real=False,
 
 def standard_deviation(Glist, real=False, iL=0, iR=0):
     """
-    Gives the covariance matrix from a list of Green's functions
+    Gives the tau-dependent standard deviation from a list of Green's functions
 
     Inputs:
         Glist - list-like of Green's functions. Must each have same length (N).
@@ -359,3 +359,35 @@ def standard_deviation_from_archive(archive, loops, block='up', Gf='G_tau', real
         Glist.append(archive[f'loop-{last-i:03d}/{Gf}'][block])
     # Get the standard deviation
     return standard_deviation(Glist, real, iL, iR)
+
+@archive_reader
+def get_O_tau(archive):
+    """Gets the latest O_tau from an archive"""
+    # First try the last loop
+    loop = get_last_loop(archive)
+    i_loop = int(loop[5:]) # Convert 'loop-###' to a number.
+    while i_loop >= 0:
+        if 'O_tau' in archive[loop]:
+            return archive[loop+'/O_tau']
+        # No O_tau there, go to the next loop
+        i_loop -= 1
+        loop = f'loop-{i_loop:03d}'
+    # We haven't found any O_tau. Raise an error
+    raise KeyError("O_tau not found")
+
+def integrate_tau(G, real=True):
+    """Integrate G_tau or O_tau over whole domain"""
+    # Extract x variable
+    tau = np.array([t for t in G.mesh.values()])
+    # Get real component only if requested
+    if real:
+        data = G.data.real
+    else:
+        data = G.data
+    # Integrate
+    return np.trapz(data, tau)
+
+@archive_reader
+def integrate_O_tau_from_archive(archive, real=True):
+    """Integrate O_tau from archive (to, e.g. compute spin susceptibility)"""
+    return integrate_tau(get_O_tau(archive), real)

@@ -11,7 +11,7 @@ import matplotlib.colors as mcolors
 
 from dmft.maxent import MaxEnt
 from dmft.utils import h5_read_full_path, archive_reader
-from dmft.measure import quasiparticle_residue_from_archive, density_from_archive, effective_spin_from_archive
+from dmft.measure import quasiparticle_residue_from_archive, density_from_archive, effective_spin_from_archive, integrate_O_tau_from_archive
 from dmft.plot_loops import wrap_plot
 
 @wrap_plot
@@ -193,7 +193,7 @@ def plot_quasiparticle_residue(archive_list, vals=None, ax=None, color=None, xla
     ax.set_ylabel(r'Quasiparticle Residue $Z$')
 
 @wrap_plot
-def plot_effective_spin(archive_list, vals=None, ax=None, color=None, xlabel='', marker='o', ymin=0, ymax=1):
+def plot_effective_spin(archive_list, vals=None, ax=None, color=None, xlabel='', marker='o', ymin=0, ymax=0.5):
     """
     Plots the effective spin from different archives in a scatter plot
 
@@ -205,7 +205,7 @@ def plot_effective_spin(archive_list, vals=None, ax=None, color=None, xlabel='',
         xlabel - string. Label for x-axis. Default ''
         marker - matplotlib marker specification. Default 'o'
         ymin - number. Default 0
-        ymax - number. Default 1
+        ymax - number. Default 0.5
     """
     # Verify that lengths match
     if vals is not None and len(archive_list) != len(vals):
@@ -220,3 +220,33 @@ def plot_effective_spin(archive_list, vals=None, ax=None, color=None, xlabel='',
     ax.set_ylim(ymin, ymax)
     ax.set_xlabel(xlabel)
     ax.set_ylabel(r'Effective spin')
+
+@wrap_plot
+def plot_O_tau(archive_list, vals=None, ax=None, color=None, xlabel='', marker='o', ymin=0, ymax=0.25, ylabel=r'$\chi$'):
+    """
+    Plots the integrated O_tau (e.g. spin susceptibiltiy) from different archives in a scatter plot
+
+    Inputs:
+        archive_list - list of strs pointing to h5 archives written by dmft
+        vals - optional, list of numbers of same length as archive_list.
+            Used for x-axis in plotting.
+        color - matplotlib colour. Optional.
+        xlabel - string. Label for x-axis. Default ''
+        marker - matplotlib marker specification. Default 'o'
+        ymin - number. Default 0
+        ymax - number. Default 0.25
+        ylabel - string. Label for y-axis. Default r'$\chi$'
+    """
+    # Verify that lengths match
+    if vals is not None and len(archive_list) != len(vals):
+        raise ValueError("Length of archive_list and vals must match")
+    # Load the data
+    data = [integrate_O_tau_from_archive(A) for A in archive_list]
+    # If vals is None, assume we want sequential integers
+    if vals is None:
+        vals = np.arange(0,len(archive_list))
+    # Plot
+    ax.plot(vals, data, linestyle='None', color=color, marker=marker)
+    ax.set_ylim(ymin, ymax)
+    ax.set_xlabel(xlabel)
+    ax.set_ylabel(ylabel)
