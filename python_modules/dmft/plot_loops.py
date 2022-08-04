@@ -311,13 +311,22 @@ def plot_greens_function(archive, gf_name='G_iw', ax=None, block='up', xmax=None
         indexR - integer (default 0). Right index
     """
     n_loops = count_loops(archive)
+    first = True
     for i in range(n_loops):
-        # Load the Green's function
-        g = h5_read_full_path(archive, 'loop-{:03d}/{}'.format(i,gf_name))
+        try:
+            # Load the Green's function
+            g = h5_read_full_path(archive, 'loop-{:03d}/{}'.format(i,gf_name))
+        except KeyError:
+            # No Green's function here. Skip it.
+            continue
         # Invoke the _plot_ protocol to get plotting data
-        data = g[block][indexL,indexR]._plot_({})
+        if gf_name == 'O_tau':
+            data = g._plot_({})
+        else:
+            data = g[block][indexL,indexR]._plot_({})
         # If this is the first loop, extract some metadata
-        if i == 0:
+        if first:
+            first = False
             xlabel = data[0]['xlabel']
             ylabel = data[0]['ylabel']
         # I don't use triqs.plot.mpl_interface oplot because I want to contro
@@ -329,6 +338,8 @@ def plot_greens_function(archive, gf_name='G_iw', ax=None, block='up', xmax=None
         # Plot imaginary value (blue, dashed)
         ax.plot(data[1]['xdata'], data[1]['ydata'],
                 color=(0,0,i/max(n_loops-1,1)), ls='--')
+    if first:
+        raise(KeyError,f"{gf_name} not found.")
     # Green's functions are symmetric or antisymmetric, so values less than 0
     # can be ignored
     ax.set_xlim(0, xmax)
