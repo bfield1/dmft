@@ -11,10 +11,10 @@ import matplotlib.colors as mcolors
 
 from dmft.maxent import MaxEnt
 from dmft.utils import h5_read_full_path, archive_reader
-from dmft.measure import quasiparticle_residue_from_archive, density_from_archive, effective_spin_from_archive, integrate_O_tau_from_archive
+from dmft.measure import quasiparticle_residue_from_archive, density_from_archive, effective_spin_from_archive, integrate_O_tau_from_archive, chiT_from_archive
 from dmft.plot_loops import wrap_plot
 
-def sweep_plotter(ymin=None, ymax=None, ylabel=''):
+def sweep_plotter(ymin=None, ymax=None, ylabel='', logx=False):
     """
     Wrapper for plotting values from a sweep across different archives
 
@@ -25,7 +25,9 @@ def sweep_plotter(ymin=None, ymax=None, ylabel=''):
     # Uses the decorator factory idiom. The sweep_plotter() decorator takes
     # some parameters then returns a proper decorator.
     def decorator(func):
-        def plotter(archive_list, vals=None, ax=None, color=None, xlabel='', marker='o', ymin=ymin, ymax=ymax, ylabel=ylabel, **kwargs):
+        def plotter(archive_list, vals=None, ax=None, color=None, xlabel='',
+                marker='o', ymin=ymin, ymax=ymax, ylabel=ylabel, logx=logx,
+                logy=False, xmin=None, xmax=None, linestyle='None', **kwargs):
             """
             Inputs:
                 archive_list - list of strs pointing to h5 archives written by dmft
@@ -35,9 +37,14 @@ def sweep_plotter(ymin=None, ymax=None, ylabel=''):
                 color - matplotlib colour. Optional.
                 xlabel - string. Label for x-axis. Default ''
                 marker - matplotlib marker specification. Default 'o'
-                ymin - number.
-                ymax - number.
-                ylabel - str
+                ymin - number. Lower y-axis limit
+                ymax - number. Upper y-axis limit
+                ylabel - str. y-axis label
+                logx - Boolean, log x scale?
+                logy - Boolean, log y scale?
+                xmin - number. Lower x-axis limit
+                xmax - number. Upper x-axis limit
+                linestyle - str. matplotlib linestyle (default 'None')
             """
             # Verify that lengths match
             if vals is not None and len(archive_list) != len(vals):
@@ -48,8 +55,17 @@ def sweep_plotter(ymin=None, ymax=None, ylabel=''):
             if vals is None:
                 vals = np.arange(0,len(archive_list))
             # Plot
-            ax.plot(vals, data, linestyle='None', color=color, marker=marker)
+            if logx and not logy:
+                plotf = ax.semilogx
+            elif logy and not logx:
+                plotf = ax.semilogy
+            elif logx and logy:
+                plotf = ax.loglog
+            else:
+                plotf = ax.plot
+            plotf(vals, data, linestyle=linestyle, color=color, marker=marker)
             ax.set_ylim(ymin, ymax)
+            ax.set_xlim(xmin, xmax)
             # Annotate
             ax.set_xlabel(xlabel)
             ax.set_ylabel(ylabel)
@@ -212,3 +228,14 @@ def plot_O_tau(A):
     """Plots the integrated O_tau (e.g. spin susceptibility) from different archives"""
     return integrate_O_tau_from_archive(A)
 
+@wrap_plot
+@sweep_plotter(ymin=0, ylabel=r'$1/\chi$')
+def plot_chiinv(A):
+    """Plots the inverse of the susceptibility from different archives"""
+    return 1/integrate_O_tau_from_archive(A)
+
+@wrap_plot
+@sweep_plotter(ymin=0, ymax=0.25, ylabel=r'$T\chi$', logx=True)
+def plot_chiT(A):
+    """Plots the susceptibility times temperature from different archives"""
+    return chiT_from_archive(A)

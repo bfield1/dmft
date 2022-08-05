@@ -391,3 +391,13 @@ def integrate_tau(G, real=True):
 def integrate_O_tau_from_archive(archive, real=True):
     """Integrate O_tau from archive (to, e.g. compute spin susceptibility)"""
     return integrate_tau(get_O_tau(archive), real)
+
+def chiT(O_tau):
+    """Integrate O_tau and multiply by temperature"""
+    chi = integrate_tau(O_tau)
+    return chi / O_tau.mesh.beta
+
+@archive_reader
+def chiT_from_archive(archive):
+    """Integrate O_tau and multiply by temperature"""
+    return chiT(get_O_tau(archive))
