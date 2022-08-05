@@ -92,6 +92,8 @@ def plot_spectrum(archive_list, colors, vals=None, choice='Chi2Curvature',
             the desired spectrum is in the last MaxEnt analysis.
         colors - list of colors (compatible with matplotlib). The color to draw
             each spectrum from archive_list. Lengths must match.
+            Or None, in which case we use default color cycle
+            Or a string, in which case we find a matplotlib cmap of that name.
         vals - list of numbers or strings (must be numbers if colorbar=True).
             Values to attach to each spectrum for legend purposes.
             If colorbar=True, these are numbers to order the color entries.
@@ -110,6 +112,8 @@ def plot_spectrum(archive_list, colors, vals=None, choice='Chi2Curvature',
         annotate - Boolean, draw vals directly on the curves. Default False
         annotate_offset - number, vertical offset for annotate text. Default 0.
     """
+    # Get colors
+    colors = _choose_colors(colors, vals, len(archive_list), logcb)
     # Check compatibility of arguments
     if len(archive_list) != len(colors):
         raise ValueError("archive_list and colors must have matching length")
@@ -184,6 +188,8 @@ def plot_maxent_chi(archive_list, colors, vals=None, choice='Chi2Curvature',
             the desired spectrum is in the last MaxEnt analysis.
         colors - list of colors (compatible with matplotlib). The color to draw
             each line from archive_list. Lengths must match.
+            Or None, in which case we use default color cycle
+            Or a string, in which case we find a matplotlib cmap of that name.
         vals - list of numbers or strings (must be numbers if colorbar=True).
             Values to attach to each spectrum for legend purposes.
             If colorbar=True, these are numbers to order the color entries.
@@ -203,6 +209,8 @@ def plot_maxent_chi(archive_list, colors, vals=None, choice='Chi2Curvature',
         annotate - Boolean, draw vals directly on the curves. Default True
         annotate_offset - number, vertical offset for annotate text. Default 0.
     """
+    # Get colors
+    colors = _choose_colors(colors, vals, len(archive_list), logcb)
     # Check compatibility of arguments
     if len(archive_list) != len(colors):
         raise ValueError("archive_list and colors must have matching length")
@@ -266,6 +274,37 @@ def plot_maxent_chi(archive_list, colors, vals=None, choice='Chi2Curvature',
     # Create the colorbar
     if colorbar:
         make_colorbar(ax=ax, vals=vals, colors=colors, legendlabel=legendlabel, logcb=logcb)
+
+def _choose_colors(colors, vals, n, log=False):
+    """
+    Processes the color argument
+
+    n - integer, number of entries
+    """
+    # If colors is already a list of colours, return it
+    if not (colors is None or isinstance(colors, str)):
+        return colors
+    # If we have non-numeric values, replace with indices
+    if vals is None or not isinstance(vals[0],numbers.Number):
+        vals = [i for i in range(n)]
+    vals = np.asarray(vals)
+    if colors is None:
+        # If colors not given, default to color cycle
+        return [f'C{i%10}' for i in range(n)]
+    if isinstance(colors,str):
+        # Bring out a matplotlib colormap
+        cmap = cm.get_cmap(colors)
+        # Take the logarithm of vals
+        if log:
+            vals = np.log10(vals)
+        # Normalise vals on range 0 to 1
+        if len(vals) > 1:
+            vals = (vals - vals.min())/(vals.max() - vals.min())
+        elif len(vals) == 1:
+            vals = np.array([1])
+        # Return colors
+        return [cmap(v) for v in vals]
+
 
 def make_colorbar(ax, colors, vals=None, legendlabel='', logcb=False):
     """
