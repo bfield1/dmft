@@ -8,6 +8,7 @@ import numpy as np
 import matplotlib.pyplot as plt
 import matplotlib.cm as cm
 import matplotlib.colors as mcolors
+import matplotlib.lines as mlines
 
 from dmft.maxent import MaxEnt
 from dmft.utils import h5_read_full_path, archive_reader
@@ -78,7 +79,9 @@ def sweep_plotter(ymin=None, ymax=None, ylabel='', logx=False):
     return decorator
 
 @wrap_plot
-def plot_spectrum(archive_list, colors, vals=None, choice='Chi2Curvature', ax=None, colorbar=True, legend=False, offset=0, legendlabel='', xmin=None, xmax=None, block=None):
+def plot_spectrum(archive_list, colors, vals=None, choice='Chi2Curvature',
+        ax=None, colorbar=True, legend=False, offset=0, legendlabel='',
+        xmin=None, xmax=None, block=None, fmt='{}', logcb=False):
     """
     Plots the spectra from archive_list on the same Axes
 
@@ -101,6 +104,8 @@ def plot_spectrum(archive_list, colors, vals=None, choice='Chi2Curvature', ax=No
         legendlabel - string. Optional. Label to attach to colorbar or legend.
         xmin, xmax - numbers, Optional. Limits for x axis.
         block - string, optional. Block to read (e.g. 'up', 'down').
+        fmt - str, for formatting vals in legend
+        logcb - Boolean, log scale in colorbar
     """
     # Check compatibility of arguments
     if len(archive_list) != len(colors):
@@ -135,64 +140,179 @@ def plot_spectrum(archive_list, colors, vals=None, choice='Chi2Curvature', ax=No
     ax.set_xlim(xmin, xmax)
     # Create the legend
     if legend:
-        ax.legend(vals, title=legendlabel)
+        if vals is None:
+            ax.legend(title=legendlabel)
+        else:
+            fmtval = [fmt.format(v) for v in vals]
+            ax.legend(fmtval, title=legendlabel)
     # Create the colorbar
     if colorbar:
-        fig = ax.figure
-        # Convert vals to a numeric array if it exists
-        if vals is not None:
-            true_vals = np.asarray(vals)
-            # This ensures all entries in vals have same type
-            vals_is_num = isinstance(true_vals[0], numbers.Number)
+        make_colorbar(ax=ax, vals=vals, colors=colors, legendlabel=legendlabel, logcb=logcb)
+
+@wrap_plot
+def plot_maxent_chi(archive_list, colors, vals=None, choice='Chi2Curvature',
+        ax=None, colorbar=True, legend=False, offset=0, legendlabel='',
+        xmin=None, xmax=None, block=None, normalise=True, fmt='{}', logcb=False):
+    """
+    Plots metrics showing performance of MaxEnt
+
+    Specifically, plots logchi^2 vs logalpha, and marks the choice of alpha.
+    For Chi2Curvature or LineFit, you'll want the mark to be sitting at the
+    join between the low-alpha plateau and the bit where chi^2 grows.
+
+    Inputs:
+        archive_list - list of str's or HDFArchive's, archives to read
+            the MaxEnts. Assumes standard layout and that
+            the desired spectrum is in the last MaxEnt analysis.
+        colors - list of colors (compatible with matplotlib). The color to draw
+            each line from archive_list. Lengths must match.
+        vals - list of numbers or strings (must be numbers if colorbar=True).
+            Values to attach to each spectrum for legend purposes.
+            If colorbar=True, these are numbers to order the color entries.
+            If legend=True, these are values to put in the legend entries.
+            Optional.
+        choice - string. MaxEnt Analyzer to use. Default 'Chi2Curvature'
+        colorbar - Boolean. Whether to draw a colorbar. Default True.
+        legend - Boolean. Whether to draw a legend. Default False.
+        offset - Non-negative number. Amount to shift each spectrum vertically
+            so they can be distinguished. Default 0.
+        legendlabel - string. Optional. Label to attach to colorbar or legend.
+        xmin, xmax - numbers, Optional. Limits for x axis.
+        block - string, optional. Block to read (e.g. 'up', 'down').
+        normalise - Boolean. Normalise chi2 so start at same point?
+        fmt - str, for formatting vals in legend
+        logcb - Boolean, log scale in colorbar
+    """
+    # Check compatibility of arguments
+    if len(archive_list) != len(colors):
+        raise ValueError("archive_list and colors must have matching length")
+    if vals is not None and len(archive_list) != len(vals):
+        raise ValueError("archive_list and vals must have matching length")
+    # Catch a trivial case: no data
+    if len(archive_list) == 0:
+        return
+    # Load the data
+    maxents = [MaxEnt.load(A, block=block) for A in archive_list]
+    # Modify choice is necessary
+    try:
+        maxents[0].data.analyzer_results[choice]
+    except KeyError:
+        # This means choice isn't here. Try choiceAnalyzer
+        try:
+            maxents[0].data.analyzer_results[choice+"Analyzer"]
+        except KeyError:
+            raise KeyError(f"{choice} and {choice}Analyzer not found in MaxEnt")
         else:
-            # If no vals, default to integers/index
-            #true_vals = np.arange(len(archive_list))
-            vals_is_num = False
-        # Generate the cmap and norm for the colorbar
-        if vals_is_num:
-            # Sort the colors to be in order of val
-            # Invoke the Decorate-Sort-Undecorate idiom
-            val_col = [(v, c) for v,c in zip(true_vals, colors)]
-            val_col.sort() # Tuples support lexicographical sorting
-            colors = [c for v,c in val_col]
+            # It is choiceAnalyzer. Update choice to match
+            choice = choice+"Analyzer"
+    # Plot the spectra
+    for i in range(len(maxents)):
+        # Get the chi2 and alpha
+        chi2 = maxents[i].data.chi2
+        alpha = np.asarray(maxents[i].alpha)
+        # Find the alpha corresponding with the choice
+        i_alpha = maxents[i].data.analyzer_results[choice]["alpha_index"]
+        # Normalise data
+        if normalise:
+            chi2 /= chi2.min()
+        # Note that, because log scale, offset is multiplied, not added
+        chi2 *= 10**(offset*i)
+        # Plot
+        ax.loglog(alpha, chi2, color=colors[i])
+        # Plot the marker
+        ax.scatter(alpha[i_alpha], chi2[i_alpha], color=colors[i], marker='o')
+    # Adjust axes limits
+    ax.set_xlim(xmin, xmax)
+    # Annotate
+    ax.set_xlabel(r'$\alpha$')
+    ax.set_ylabel(r'$\chi^2$')
+    # Create the legend
+    if legend:
+        handles = [mlines.Line2D([],[],color=c) for c in colors]
+        if vals is None:
+            fmtval = None
+        else:
+            fmtval = [fmt.format(v) for v in vals]
+        ax.legend(labels=fmtval, handles=handles, title=legendlabel)
+    # Create the colorbar
+    if colorbar:
+        make_colorbar(ax=ax, vals=vals, colors=colors, legendlabel=legendlabel, logcb=logcb)
+
+def make_colorbar(ax, colors, vals=None, legendlabel='', logcb=False):
+    """
+    Create a segmented colorbar from a list of values and colours.
+
+    Inputs:
+        ax - matplotlib Axes
+        vals - list, or None. If None or a list of non-numeric values,
+            values are ignored and we just go by the indices.
+        colors - list of colors
+        legendlabel - str, title for colorbar.
+    Output: colorbar
+    """
+    fig = ax.figure
+    # Convert vals to a numeric array if it exists
+    if vals is not None:
+        true_vals = np.asarray(vals)
+        # This ensures all entries in vals have same type
+        vals_is_num = isinstance(true_vals[0], numbers.Number)
+    else:
+        # If no vals, default to integers/index
+        #true_vals = np.arange(len(archive_list))
+        vals_is_num = False
+    # Generate the cmap and norm for the colorbar
+    if vals_is_num:
+        # Sort the colors to be in order of val
+        # Invoke the Decorate-Sort-Undecorate idiom
+        val_col = [(v, c) for v,c in zip(true_vals, colors)]
+        val_col.sort() # Tuples support lexicographical sorting
+        colors = [c for v,c in val_col]
+        # If log, make true_vals a log
+        if logcb:
+            true_vals = np.array([np.log10(v) for v,c in val_col])
+        else:
             true_vals = np.array([v for v,c in val_col])
-        if vals_is_num and len(colors) > 1:
-            # We need the midpoints between the vals.
-            diff = np.diff(true_vals, prepend=true_vals[0])
-            boundaries = true_vals - diff/2
-            # The boundaries also need the endpoints of true_vals
-            # as well as the midpoints.
-            boundaries = np.concatenate((boundaries, [true_vals[-1]]))
-            # Pad the boundaries so edges get a full block
-            boundaries[0] -= diff[1]/2
-            boundaries[-1] += diff[-1]/2
-            # Map boundaries to range 0 to 1
-            scale_bound = (boundaries - boundaries[0])/(boundaries[-1]-boundaries[0])
-            # We want to build a linearly segmented colormap, but with
-            # discontinuities
-            # This lets us have block segments with different sizes
-            # Create a value-color pair list
-            clist = []
-            for i,c in enumerate(colors):
-                clist.append((scale_bound[i], c))
-                clist.append((scale_bound[i+1], c))
-            cmap = mcolors.LinearSegmentedColormap.from_list('from_list',clist)
-            # Generate norm
-            norm = mcolors.Normalize(vmin=boundaries[0], vmax=boundaries[-1])
+    if vals_is_num and len(colors) > 1:
+        # We need the midpoints between the vals.
+        diff = np.diff(true_vals, prepend=true_vals[0])
+        boundaries = true_vals - diff/2
+        # The boundaries also need the endpoints of true_vals
+        # as well as the midpoints.
+        boundaries = np.concatenate((boundaries, [true_vals[-1]]))
+        # Pad the boundaries so edges get a full block
+        boundaries[0] -= diff[1]/2
+        boundaries[-1] += diff[-1]/2
+        # Map boundaries to range 0 to 1
+        scale_bound = (boundaries - boundaries[0])/(boundaries[-1]-boundaries[0])
+        # We want to build a linearly segmented colormap, but with
+        # discontinuities
+        # This lets us have block segments with different sizes
+        # Create a value-color pair list
+        clist = []
+        for i,c in enumerate(colors):
+            clist.append((scale_bound[i], c))
+            clist.append((scale_bound[i+1], c))
+        cmap = mcolors.LinearSegmentedColormap.from_list('from_list',clist)
+        # Generate norm
+        if logcb:
+            norm = mcolors.LogNorm(vmin=10**boundaries[0], vmax=10**boundaries[-1])
         else:
-            # Non-numeric vals. Map to indices instead
-            # Or we only have 1 color, which is a trivial case.
-            cmap = mcolors.ListedColormap(colors)
-            # If we have one colour that has a value, centre our plot on it.
-            if len(colors) == 1 and vals_is_num:
-                val = vals[0]
-            else:
-                val = 0
-            norm = mcolors.Normalize(vmin=val-0.5, vmax=val+len(colors)-0.5)
-            # Integers are centred on each color
-        # Create the colorbar
-        fig.colorbar(cm.ScalarMappable(cmap=cmap, norm=norm), ax=ax,
-                label=legendlabel)
+            norm = mcolors.Normalize(vmin=boundaries[0], vmax=boundaries[-1])
+    else:
+        # Non-numeric vals. Map to indices instead
+        # Or we only have 1 color, which is a trivial case.
+        cmap = mcolors.ListedColormap(colors)
+        # If we have one colour that has a value, centre our plot on it.
+        if len(colors) == 1 and vals_is_num:
+            val = vals[0]
+        else:
+            val = 0
+        # Generate norm
+        norm = mcolors.Normalize(vmin=val-0.5, vmax=val+len(colors)-0.5)
+        # Integers are centred on each color
+    # Create the colorbar
+    return fig.colorbar(cm.ScalarMappable(cmap=cmap, norm=norm), ax=ax,
+            label=legendlabel)
 
 
 @sweep_plotter(ymin=0, ymax=2, ylabel='Density $n$')
@@ -239,3 +359,4 @@ def plot_chiinv(A):
 def plot_chiT(A):
     """Plots the susceptibility times temperature from different archives"""
     return chiT_from_archive(A)
+
