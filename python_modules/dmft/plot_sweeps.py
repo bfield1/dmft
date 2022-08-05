@@ -81,7 +81,8 @@ def sweep_plotter(ymin=None, ymax=None, ylabel='', logx=False):
 @wrap_plot
 def plot_spectrum(archive_list, colors, vals=None, choice='Chi2Curvature',
         ax=None, colorbar=True, legend=False, offset=0, legendlabel='',
-        xmin=None, xmax=None, block=None, fmt='{}', logcb=False):
+        xmin=None, xmax=None, block=None, fmt='{}', logcb=False,
+        annotate=False, annotate_offset=0):
     """
     Plots the spectra from archive_list on the same Axes
 
@@ -104,8 +105,10 @@ def plot_spectrum(archive_list, colors, vals=None, choice='Chi2Curvature',
         legendlabel - string. Optional. Label to attach to colorbar or legend.
         xmin, xmax - numbers, Optional. Limits for x axis.
         block - string, optional. Block to read (e.g. 'up', 'down').
-        fmt - str, for formatting vals in legend
-        logcb - Boolean, log scale in colorbar
+        fmt - str, for formatting vals in legend. Default '{}'
+        logcb - Boolean, log scale in colorbar. Default False.
+        annotate - Boolean, draw vals directly on the curves. Default False
+        annotate_offset - number, vertical offset for annotate text. Default 0.
     """
     # Check compatibility of arguments
     if len(archive_list) != len(colors):
@@ -121,9 +124,14 @@ def plot_spectrum(archive_list, colors, vals=None, choice='Chi2Curvature',
     for i in range(len(maxents)):
         # First spectrum we can use normal plotting.
         # We can also use normal plotting if no offset is called for
+        # This also covers setting up the axes labels
         if i == 0 or offset == 0:
             maxents[i].plot_spectrum(choice=choice, ax=ax, inplace=False,
                     color=colors[i])
+            if annotate and vals is not None:
+                # We'll need this later
+                A = maxents[i].get_spectrum(choice)
+                omega = maxents[i].omega
         # Otherwise, need to do some manual work to get an offset.
         else:
             # Get data for the spectrum
@@ -133,6 +141,15 @@ def plot_spectrum(archive_list, colors, vals=None, choice='Chi2Curvature',
             A += offset * i
             # Plot
             ax.plot(omega, A, c=colors[i])
+        if annotate and vals is not None:
+            # Draw label on the curve (or near enough to it)
+            # Where will we draw? Far right.
+            if xmax is None:
+                x = max(omega)
+            else:
+                x = xmax
+            y = A[-1] + annotate_offset
+            ax.text(x, y, fmt.format(vals[i]), c=colors[i], ha='right', va='bottom')
     # Adjust the maximum of the plot, because it defaults to the ylim of
     # the first spectrum plotted
     ax.autoscale()
@@ -151,8 +168,9 @@ def plot_spectrum(archive_list, colors, vals=None, choice='Chi2Curvature',
 
 @wrap_plot
 def plot_maxent_chi(archive_list, colors, vals=None, choice='Chi2Curvature',
-        ax=None, colorbar=True, legend=False, offset=0, legendlabel='',
-        xmin=None, xmax=None, block=None, normalise=True, fmt='{}', logcb=False):
+        ax=None, colorbar=False, legend=False, offset=0, legendlabel='',
+        xmin=None, xmax=None, block=None, normalise=True, fmt='{}', logcb=False,
+        annotate=True, annotate_offset=0):
     """
     Plots metrics showing performance of MaxEnt
 
@@ -172,7 +190,7 @@ def plot_maxent_chi(archive_list, colors, vals=None, choice='Chi2Curvature',
             If legend=True, these are values to put in the legend entries.
             Optional.
         choice - string. MaxEnt Analyzer to use. Default 'Chi2Curvature'
-        colorbar - Boolean. Whether to draw a colorbar. Default True.
+        colorbar - Boolean. Whether to draw a colorbar. Default False.
         legend - Boolean. Whether to draw a legend. Default False.
         offset - Non-negative number. Amount to shift each spectrum vertically
             so they can be distinguished. Default 0.
@@ -182,6 +200,8 @@ def plot_maxent_chi(archive_list, colors, vals=None, choice='Chi2Curvature',
         normalise - Boolean. Normalise chi2 so start at same point?
         fmt - str, for formatting vals in legend
         logcb - Boolean, log scale in colorbar
+        annotate - Boolean, draw vals directly on the curves. Default True
+        annotate_offset - number, vertical offset for annotate text. Default 0.
     """
     # Check compatibility of arguments
     if len(archive_list) != len(colors):
@@ -205,7 +225,7 @@ def plot_maxent_chi(archive_list, colors, vals=None, choice='Chi2Curvature',
         else:
             # It is choiceAnalyzer. Update choice to match
             choice = choice+"Analyzer"
-    # Plot the spectra
+    # Plot the curves
     for i in range(len(maxents)):
         # Get the chi2 and alpha
         chi2 = maxents[i].data.chi2
@@ -221,6 +241,15 @@ def plot_maxent_chi(archive_list, colors, vals=None, choice='Chi2Curvature',
         ax.loglog(alpha, chi2, color=colors[i])
         # Plot the marker
         ax.scatter(alpha[i_alpha], chi2[i_alpha], color=colors[i], marker='o')
+        if annotate and vals is not None:
+            # Draw label on the curve (or near enough to it)
+            # Where will we draw? Far left
+            if xmin is None:
+                x = alpha.min()
+            else:
+                x = xmin
+            y = chi2[-1] * 10**annotate_offset
+            ax.text(x, y, fmt.format(vals[i]), c=colors[i], ha='left', va='bottom')
     # Adjust axes limits
     ax.set_xlim(xmin, xmax)
     # Annotate
