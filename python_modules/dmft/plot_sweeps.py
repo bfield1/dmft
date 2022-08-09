@@ -82,7 +82,8 @@ def sweep_plotter(ymin=None, ymax=None, ylabel='', logx=False):
 def plot_spectrum(archive_list, colors, vals=None, choice='Chi2Curvature',
         ax=None, colorbar=True, legend=False, offset=0, legendlabel='',
         xmin=None, xmax=None, block=None, fmt='{}', logcb=False,
-        annotate=False, annotate_offset=0):
+        annotate=False, annotate_offset=0, xlabel=None, ylabel=None,
+        special_annotate='{}', special_annotate_idx=0):
     """
     Plots the spectra from archive_list on the same Axes
 
@@ -111,6 +112,12 @@ def plot_spectrum(archive_list, colors, vals=None, choice='Chi2Curvature',
         logcb - Boolean, log scale in colorbar. Default False.
         annotate - Boolean, draw vals directly on the curves. Default False
         annotate_offset - number, vertical offset for annotate text. Default 0.
+        xlabel - str, optional. If provided, overrides plot xlabel
+        ylabel - str, optional. If provided, overrides plot ylabel
+        special_annotate - str, optional, for formatting vals in annotate with
+            a special value for the one at special_annotate_idx. Is called
+            after fmt.
+        special_annotate_idx - int
     """
     # Get colors
     colors = _choose_colors(colors, vals, len(archive_list), logcb)
@@ -152,13 +159,28 @@ def plot_spectrum(archive_list, colors, vals=None, choice='Chi2Curvature',
                 x = max(omega)
             else:
                 x = xmax
-            y = A[-1] + annotate_offset
-            ax.text(x, y, fmt.format(vals[i]), c=colors[i], ha='right', va='bottom')
+            # Get y at far right
+            if x >= max(omega):
+                y = A[-1] + annotate_offset
+            else:
+                # Need to grab the visible y at the far right of the plot
+                # Get the index of maximum omega
+                idx = len(omega[omega < x])
+                y = A[idx] + annotate_offset
+            txt = fmt.format(vals[i])
+            if i == special_annotate_idx%len(vals) and isinstance(special_annotate, str):
+                txt = special_annotate.format(txt)
+            ax.text(x, y, txt, c=colors[i], ha='right', va='bottom')
     # Adjust the maximum of the plot, because it defaults to the ylim of
     # the first spectrum plotted
     ax.autoscale()
     ax.set_ylim(bottom=0)
     ax.set_xlim(xmin, xmax)
+    # Plot labels
+    if xlabel is not None:
+        ax.set_xlabel(xlabel)
+    if ylabel is not None:
+        ax.set_ylabel(ylabel)
     # Create the legend
     if legend:
         if vals is None:
@@ -174,7 +196,8 @@ def plot_spectrum(archive_list, colors, vals=None, choice='Chi2Curvature',
 def plot_maxent_chi(archive_list, colors, vals=None, choice='Chi2Curvature',
         ax=None, colorbar=False, legend=False, offset=0, legendlabel='',
         xmin=None, xmax=None, block=None, normalise=True, fmt='{}', logcb=False,
-        annotate=True, annotate_offset=0):
+        annotate=True, annotate_offset=0, special_annotate='{}',
+        special_annotate_idx=0):
     """
     Plots metrics showing performance of MaxEnt
 
@@ -208,6 +231,10 @@ def plot_maxent_chi(archive_list, colors, vals=None, choice='Chi2Curvature',
         logcb - Boolean, log scale in colorbar
         annotate - Boolean, draw vals directly on the curves. Default True
         annotate_offset - number, vertical offset for annotate text. Default 0.
+        special_annotate - str, optional, for formatting vals in annotate with
+            a special value for the one at special_annotate_idx. Is called
+            after fmt.
+        special_annotate_idx - int
     """
     # Get colors
     colors = _choose_colors(colors, vals, len(archive_list), logcb)
@@ -251,13 +278,23 @@ def plot_maxent_chi(archive_list, colors, vals=None, choice='Chi2Curvature',
         ax.scatter(alpha[i_alpha], chi2[i_alpha], color=colors[i], marker='o')
         if annotate and vals is not None:
             # Draw label on the curve (or near enough to it)
-            # Where will we draw? Far left
+            # Where will we draw? Far left (Note, alpha is sorted descending)
             if xmin is None:
                 x = alpha.min()
             else:
                 x = xmin
-            y = chi2[-1] * 10**annotate_offset
-            ax.text(x, y, fmt.format(vals[i]), c=colors[i], ha='left', va='bottom')
+            # Get y at far left
+            if x <= min(alpha):
+                y = chi2[-1] * 10**annotate_offset
+            else:
+                # Need to grab the visible y at the far left of the plot
+                # Get the index of minimum alpha
+                idx = len(alpha[alpha > x])
+                y = chi2[idx] * 10**annotate_offset
+            txt = fmt.format(vals[i])
+            if i == special_annotate_idx%len(vals) and isinstance(special_annotate, str):
+                txt = special_annotate.format(txt)
+            ax.text(x, y, txt, c=colors[i], ha='left', va='bottom')
     # Adjust axes limits
     ax.set_xlim(xmin, xmax)
     # Annotate
@@ -314,10 +351,14 @@ def make_colorbar(ax, colors, vals=None, legendlabel='', logcb=False):
         ax - matplotlib Axes
         vals - list, or None. If None or a list of non-numeric values,
             values are ignored and we just go by the indices.
-        colors - list of colors
+        colors - list of colors, or a str or None (if str or None provided,
+            must include vals).
         legendlabel - str, title for colorbar.
     Output: colorbar
     """
+    # Choose the colors, if necessary
+    if isinstance(colors, str) or colors is None:
+        colors = _choose_colors(colors, vals, len(vals), logcb)
     fig = ax.figure
     # Convert vals to a numeric array if it exists
     if vals is not None:
