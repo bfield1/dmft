@@ -14,11 +14,13 @@ try:
     import triqs.gf as gf
     import triqs.operators as op
     import triqs.atom_diag
+    _triqs_available = True
 except ImportError:
     triqslogger.warning("triqs not found. Loading fake version")
     import dmft.faketriqs.triqs.gf as gf
+    _triqs_available = False
 
-from dmft.utils import archive_reader, h5_read_full_path, get_last_loop
+from dmft.utils import archive_reader, h5_read_full_path, get_last_loop, format_loop
 import dmft.logging.cat
 from dmft.maxent import MaxEnt
 
@@ -35,12 +37,7 @@ def quasiparticle_residue_from_archive(archive, loop=None, block='up', index=0):
     Loads Sigma_iw from an archive and gives the quasiparticle residue
     Defaults to the last loop.
     """
-    # If no loop given, get the last loop
-    if loop is None:
-        loop = get_last_loop(archive)
-    # If loop is an integer, convert to string
-    elif isinstance(loop, int):
-        loop = 'loop-{:03d}'.format(loop)
+    loop = format_loop(archive, loop)
     # Implied is the possibility of passing loop as an explicit string
     # Load Sigma_iw, the self-energy
     sigma = archive[loop]['Sigma_iw']
@@ -53,18 +50,19 @@ def density_from_archive(archive, loop=None):
     Loads G_iw from an archive and returns the total density.
     Defaults to the last loop
     """
-    # If no loop given, get the last loop
-    if loop is None:
-        loop = get_last_loop(archive)
-    # If loop is an integer, convert to string
-    elif isinstance(loop, int):
-        loop = 'loop-{:03d}'.format(loop)
-    # Implied is the possibility of passing loop as an explicit string
-    # Load G_iw, the Green's function
-    G = archive[loop]['G_iw']
-    # Give the total density.
-    # Need real because it has a machine-error imaginary component
-    return G.total_density().real
+    loop = format_loop(archive, loop)
+    if _triqs_available:
+        # Load G_iw, the Green's function
+        G = archive[loop]['G_iw']
+        # Give the total density.
+        # Need real because it has a machine-error imaginary component
+        return G.total_density().real
+    else:
+        # Check if it's recorded
+        if 'density' in archive[loop]:
+            return archive[loop]['density']
+        else:
+            raise ImportError(f"Cannot measure density because TRIQS not available, and density was not recorded in {loop}.")
 
 def average_sign_from_archive(archive):
     """
@@ -218,12 +216,7 @@ def static_observable_from_archive(archive, my_op, loop=None):
     Output:
         scalar, the expectation value of the given operator
     """
-    # If no loop given, get the last loop
-    if loop is None:
-        loop = get_last_loop(archive)
-    # If loop is an integer, convert to string
-    elif isinstance(loop, int):
-        loop = 'loop-{:03d}'.format(loop)
+    loop = format_loop(archive, loop)
     # Load rho if it exists
     if 'density_matrix' in archive[loop]:
         rho = archive[loop]['density_matrix']
@@ -234,6 +227,7 @@ def static_observable_from_archive(archive, my_op, loop=None):
     # Do the trace
     return triqs.atom_diag.trace_rho_op(rho, my_op, h_loc_diag)
 
+@archive_reader
 def effective_spin_from_archive(archive, loop=None):
     """
     S_eff(S_eff+1) = <S.S> = 3<S_z S_z>, solve for S_eff
@@ -242,9 +236,17 @@ def effective_spin_from_archive(archive, loop=None):
         loop - optional non-negative int or str (default None)
     Output: scalar, the effective spin.
     """
-    Sz = 0.5 * (op.n('up',0) - op.n('down',0))
-    SS = static_observable_from_archive(archive, 3*Sz*Sz, loop)
-    return -0.5 + 0.5 * np.sqrt(1 + 4*SS)
+    if _triqs_available:
+        Sz = 0.5 * (op.n('up',0) - op.n('down',0))
+        SS = static_observable_from_archive(archive, 3*Sz*Sz, loop)
+        return -0.5 + 0.5 * np.sqrt(1 + 4*SS)
+    else:
+        # Check if it's recorded
+        loop = format_loop(archive, loop)
+        if 'effective_spin' in archive[loop]:
+            return archive[loop]['effective_spin']
+        else:
+            raise ImportError(f"Cannot measure effective spin because TRIQS not available, and effective_spin was not recorded in {loop}.")
 
 def covariance(Glist, real=False, iL=0, iR=0):
     """

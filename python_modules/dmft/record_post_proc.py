@@ -13,7 +13,7 @@ import triqs.operators as op
 import triqs.atom_diag
 
 import dmft.measure
-from dmft.utils import archive_writer, get_last_loop
+from dmft.utils import archive_writer, get_last_loop, format_loop
 
 def save_density_to_loop(SG):
     """
@@ -33,12 +33,7 @@ def save_density_to_archive(archive, loop=None):
     Effect:
         saves to loop-###/density
     """
-    # If no loop is given, get the last archive
-    if loop is None:
-        loop = get_last_loop(archive)
-    # If loop is an integer, convert to string
-    elif isinstance(loop, int):
-        loop = 'loop-{:03d}'.format(loop)
+    loop = format_loop(archive, loop)
     # Save the density
     save_density_to_loop(archive[loop])
 
@@ -69,12 +64,7 @@ def save_effective_spin_to_archive(archive, loop=None):
     Effect:
         saves to loop-###/effective_spin
     """
-    # If no loop is given, get the last archive
-    if loop is None:
-        loop = get_last_loop(archive)
-    # If loop is an integer, convert to string
-    elif isinstance(loop, int):
-        loop = 'loop-{:03d}'.format(loop)
+    loop = format_loop(archive, loop)
     # Save the density
     try:
         save_effective_spin_to_loop(archive[loop])

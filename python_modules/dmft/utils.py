@@ -129,3 +129,23 @@ def get_last_loop(archive):
     # Then we sort them
     # Then we take the last one
     return sorted([k for k in archive if k[0:5] == 'loop-'])[-1]
+
+def format_loop(archive, loop):
+    """
+    Turns a given loop into a readable key
+
+    Inputs:
+        archive - HDFArchive, or path to a hdf5 file, produced by dmft.dmft
+        loop - loop specification: None, int, or other
+            If None, get the last loop in the archive
+            If int, convert to string format
+            Otherwise, return as is
+    Output: loop (str)
+    """
+    # If no loop given, get the last loop
+    if loop is None:
+        loop = get_last_loop(archive)
+    # If loop is an integer, convert to string
+    elif isinstance(loop, int):
+        loop = 'loop-{:03d}'.format(loop)
+    return loop
