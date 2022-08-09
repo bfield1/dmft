@@ -16,7 +16,10 @@ def archive_reader(func):
     def reader(archive, *args, **kwargs):
         if isinstance(archive, str):
             with HDFArchive(archive, 'r') as A:
-                return func(A, *args, **kwargs)
+                try:
+                    return func(A, *args, **kwargs)
+                except Exception as e:
+                    raise type(e)(f"Exception while reading {archive}.") from e
         else:
             return func(archive, *args, **kwargs)
     return reader
@@ -29,7 +32,10 @@ def archive_reader2(func):
     def reader(self, archive, *args, **kwargs):
         if isinstance(archive, str):
             with HDFArchive(archive, 'r') as A:
-                return func(self, A, *args, **kwargs)
+                try:
+                    return func(self, A, *args, **kwargs)
+                except Exception as e:
+                    raise type(e)(f"Exception while reading {archive}.") from e
         else:
             return func(self, archive, *args, **kwargs)
     return reader

@@ -342,6 +342,54 @@ def _choose_colors(colors, vals, n, log=False):
         # Return colors
         return [cmap(v) for v in vals]
 
+def get_divergent_colors(cmap, vals, mid, low=None, high=None):
+    """
+    Maps vals to a divergent colormap with a custom midpoint
+
+    Inputs:
+        cmap - str or matplotlib.colors.Colormap or None
+        vals - list-like of numbers, to get colours for
+        mid - number, midpoint for the colour map
+        low - optional number, minimum value for colour map
+            (default to min(vals))
+        high - optional number, maximum value for colour map
+            (default to max(vals))
+            Values which lies outside the range will be pinned to edge.
+    Output: list of colours
+    """
+    # Catch empty input
+    if len(vals) == 0:
+        return []
+    # Load colourmap
+    cmap = cm.get_cmap(cmap)
+    # Go to numpy array for smarter operations and indexing
+    vals = np.asarray(vals)
+    # Get minimum and maximum if not set
+    if low is None:
+        low = vals.min()
+    if high is None:
+        high = vals.max()
+    # Check error case
+    if low > high:
+        raise ValueError("Minimum is greater than maximum")
+    # We need to map values into the range 0 to 0.5 and 0.5 to 1
+    truevals = np.ones(vals.shape) * -1. # This ensures errors are obvious
+    # Values at the midpoint will always be 0.5
+    truevals[vals == mid] = 0.5
+    # If low == high, we have a singular case, no variation allowed.
+    if low == high:
+        truevals[vals < mid] = 0
+        truevals[vals > mid] = 1
+    else:
+        if low < mid:
+            v = vals[vals < mid]
+            # Map values to 0-0.5
+            truevals[vals < mid] = np.maximum(0.5 - (mid - v) / (mid - low) * 0.5, 0)
+        if high > mid:
+            v = vals[vals > mid]
+            # Map values to 0.5-1
+            truevals[vals > mid] = np.minimum(0.5 + (v - mid) / (high - mid) * 0.5, 1)
+    return [cmap(v) for v in truevals]
 
 def make_colorbar(ax, colors, vals=None, legendlabel='', logcb=False):
     """
