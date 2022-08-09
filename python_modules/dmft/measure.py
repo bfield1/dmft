@@ -9,7 +9,7 @@ import numpy as np
 import matplotlib.pyplot as plt
 import h5py
 
-triqslogger = logging.getLogger("dmft.faketriqs")
+from dmft.faketriqs.importlogger import logger as triqslogger
 try:
     import triqs.gf as gf
     import triqs.operators as op

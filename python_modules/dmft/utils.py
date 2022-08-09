@@ -2,7 +2,7 @@ import functools
 import warnings
 import logging
 
-triqslogger = logging.getLogger("dmft.faketriqs")
+from dmft.faketriqs.importlogger import logger as triqslogger
 try:
     from h5 import HDFArchive, HDFArchiveGroup
 except ImportError:

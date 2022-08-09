@@ -11,7 +11,7 @@ import matplotlib.pyplot as plt
 import matplotlib.cm as cm
 import matplotlib.colors as mcolors
 
-triqslogger = logging.getLogger("dmft.faketriqs")
+from dmft.faketriqs.importlogger import logger as triqslogger
 try:
     import triqs.gf as gf # Needed to import the DMFT data
     import triqs.utility.mpi as mpi
