@@ -11,11 +11,12 @@ import matplotlib.pyplot as plt
 import matplotlib.cm as cm
 import matplotlib.colors as mcolors
 
+triqslogger = logging.getLogger("dmft.faketriqs")
 try:
     import triqs.gf as gf # Needed to import the DMFT data
     import triqs.utility.mpi as mpi
 except ImportError:
-    logging.warning("triqs not found. Loading fake version")
+    triqslogger.warning("triqs not found. Loading fake version")
     import dmft.faketriqs.triqs.gf as gf
     import dmft.faketriqs.triqs.utility.mpi as mpi
 try:
