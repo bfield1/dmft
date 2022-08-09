@@ -42,6 +42,23 @@ def archive_reader2(func):
             return func(self, archive, *args, **kwargs)
     return reader
 
+def archive_writer(func):
+    """
+    For a function which writes to a HDFArchive as the first argument,
+    it opens the archive (append mode) if a string was passed.
+    """
+    @functools.wraps(func)
+    def writer(archive, *args, **kwargs):
+        if isinstance(archive, str):
+            with HDFArchive(archive, 'a') as A:
+                try:
+                    return func(A, *args, **kwargs)
+                except Exception as e:
+                    raise type(e)(f"Exception while editing {archive}.") from e
+        else:
+            return func(archive, *args, **kwargs)
+    return writer
+
 def h5_write_full_path(archive, item, path):
     """
     Helper function for appending data in a HDFArchive using path specification
