@@ -1,10 +1,11 @@
 import functools
 import warnings
+import logging
 
 try:
     from h5 import HDFArchive, HDFArchiveGroup
 except ImportError:
-    warnings.warn("triqs/h5 not found. Loading fake version.")
+    logging.warning("triqs/h5 not found. Loading fake version.")
     from dmft.faketriqs.h5 import HDFArchive, HDFArchiveGroup
 
 def archive_reader(func):

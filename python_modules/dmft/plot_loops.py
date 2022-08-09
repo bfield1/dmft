@@ -4,6 +4,7 @@ Does plotting of DMFT data comparing different DMFT loops
 
 import functools
 from warnings import warn
+import logging
 
 import numpy as np
 import matplotlib.pyplot as plt
@@ -14,7 +15,7 @@ try:
     import triqs.gf as gf # Needed to import the DMFT data
     import triqs.utility.mpi as mpi
 except ImportError:
-    warn("triqs not found. Loading fake version")
+    logging.warning("triqs not found. Loading fake version")
     import dmft.faketriqs.triqs.gf as gf
     import dmft.faketriqs.triqs.utility.mpi as mpi
 try:

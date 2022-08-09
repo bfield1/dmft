@@ -3,6 +3,7 @@ Functions for measuring DMFT quantities.
 """
 
 import warnings
+import logging
 
 import numpy as np
 import matplotlib.pyplot as plt
@@ -13,7 +14,7 @@ try:
     import triqs.operators as op
     import triqs.atom_diag
 except ImportError:
-    warnings.warn("triqs not found. Loading fake version")
+    logging.warning("triqs not found. Loading fake version")
     import dmft.faketriqs.triqs.gf as gf
 
 from dmft.utils import archive_reader, h5_read_full_path, get_last_loop

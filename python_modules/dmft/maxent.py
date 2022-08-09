@@ -4,6 +4,7 @@ Runs basic MaxEnt processing
 import argparse
 from warnings import warn
 import functools
+import logging
 
 import numpy as np
 import matplotlib.pyplot as plt
@@ -11,17 +12,17 @@ import matplotlib.pyplot as plt
 try:
     import triqs.gf as gf # Needed to import the DMFT data
 except ImportError:
-    warn("triqs not found. Loading fake version")
+    logging.warning("triqs not found. Loading fake version")
     import dmft.faketriqs.triqs.gf as gf
 try:
     from h5 import HDFArchive
 except ImportError:
-    warn("triqs/h5 not found. Loading fake version.")
+    logging.warning("triqs/h5 not found. Loading fake version.")
     from dmft.faketriqs.h5 import HDFArchive
 try:
     import triqs_maxent as me
 except ImportError:
-    warn("triqs_maxent not found. Loading fake version.")
+    logging.warning("triqs_maxent not found. Loading fake version.")
     import dmft.faketriqs.triqs_maxent as me
 try:
     import triqs.utility.mpi as mpi
