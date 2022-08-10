@@ -4,6 +4,8 @@ Saves post-processing measurements to the archive
 Especially useful for when TRIQS might not be available later
 """
 
+import argparse
+
 import numpy as np
 
 # Need full version because we're writing
@@ -70,3 +72,32 @@ def save_effective_spin_to_archive(archive, loop=None):
         save_effective_spin_to_loop(archive[loop])
     except KeyError:
         raise KeyError(f"density_matrix was not recorded in {loop}.")
+
+def save_all_to_loop(SG):
+    """
+    With HDFArchiveGroup of a loop, writes density and effective spin (if applicable)
+    """
+    save_density_to_loop(SG)
+    if 'density_matrix' in SG:
+        save_effective_spin_to_loop(SG)
+
+@archive_writer
+def save_all_to_archive(archive, loop=None):
+    """
+    Writes density and effective spin (if applicable) to archive
+
+    Inputs:
+        archive - str or HDFArchive
+        loop - None (do last loop), int, or str
+    """
+    loop = format_loop(archive, loop)
+    save_all_to_loop(archive[loop])
+
+if __name__ == "__main__":
+    parser = argparse.ArgumentParser(description="Records post-processing data in archives (their last loop only)")
+    parser.add_argument('archives', nargs='+', help="HDF5 archives made by dmft.dmft to modify.")
+    args = parser.parse_args()
+
+    for A in args.archives:
+        print(A)
+        save_all_to_archive(A)
