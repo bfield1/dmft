@@ -83,7 +83,7 @@ def plot_spectrum(archive_list, colors, vals=None, choice='Chi2Curvature',
         ax=None, colorbar=True, legend=False, offset=0, legendlabel='',
         xmin=None, xmax=None, block=None, fmt='{}', logcb=False,
         annotate=False, annotate_offset=0, xlabel=None, ylabel=None,
-        special_annotate='{}', special_annotate_idx=0):
+        special_annotate='{}', special_annotate_idx=0, cmin=None, cmax=None):
     """
     Plots the spectra from archive_list on the same Axes
 
@@ -118,9 +118,12 @@ def plot_spectrum(archive_list, colors, vals=None, choice='Chi2Curvature',
             a special value for the one at special_annotate_idx. Is called
             after fmt.
         special_annotate_idx - int
+        cmin, cmax - numbers, optional. If generating colors, normalise vals to
+            be in this range.
     """
     # Get colors
-    colors = _choose_colors(colors, vals, len(archive_list), logcb)
+    colors = _choose_colors(colors, vals, len(archive_list), logcb,
+            cmin=cmin, cmax=cmax)
     # Check compatibility of arguments
     if len(archive_list) != len(colors):
         raise ValueError("archive_list and colors must have matching length")
@@ -197,7 +200,7 @@ def plot_maxent_chi(archive_list, colors, vals=None, choice='Chi2Curvature',
         ax=None, colorbar=False, legend=False, offset=0, legendlabel='',
         xmin=None, xmax=None, block=None, normalise=True, fmt='{}', logcb=False,
         annotate=True, annotate_offset=0, special_annotate='{}',
-        special_annotate_idx=0):
+        special_annotate_idx=0, cmin=None, cmax=None):
     """
     Plots metrics showing performance of MaxEnt
 
@@ -235,9 +238,12 @@ def plot_maxent_chi(archive_list, colors, vals=None, choice='Chi2Curvature',
             a special value for the one at special_annotate_idx. Is called
             after fmt.
         special_annotate_idx - int
+        cmin, cmax - numbers, optional. If generating colors, normalise vals to
+            be in this range.
     """
     # Get colors
-    colors = _choose_colors(colors, vals, len(archive_list), logcb)
+    colors = _choose_colors(colors, vals, len(archive_list), logcb,
+            cmin=cmin, cmax=cmax)
     # Check compatibility of arguments
     if len(archive_list) != len(colors):
         raise ValueError("archive_list and colors must have matching length")
@@ -312,7 +318,7 @@ def plot_maxent_chi(archive_list, colors, vals=None, choice='Chi2Curvature',
     if colorbar:
         make_colorbar(ax=ax, vals=vals, colors=colors, legendlabel=legendlabel, logcb=logcb)
 
-def _choose_colors(colors, vals, n, log=False):
+def _choose_colors(colors, vals, n, log=False, cmin=None, cmax=None):
     """
     Processes the color argument
 
@@ -325,6 +331,10 @@ def _choose_colors(colors, vals, n, log=False):
     if vals is None or not isinstance(vals[0],numbers.Number):
         vals = [i for i in range(n)]
     vals = np.asarray(vals)
+    if cmin is None:
+        cmin = vals.min()
+    if cmax is None:
+        cmax = vals.max()
     if colors is None:
         # If colors not given, default to color cycle
         return [f'C{i%10}' for i in range(n)]
@@ -334,9 +344,11 @@ def _choose_colors(colors, vals, n, log=False):
         # Take the logarithm of vals
         if log:
             vals = np.log10(vals)
+            cmin = np.log10(cmin)
+            cmax = np.log10(cmax)
         # Normalise vals on range 0 to 1
-        if len(vals) > 1:
-            vals = (vals - vals.min())/(vals.max() - vals.min())
+        if len(vals) > 1 and cmin < cmax:
+            vals = np.maximum(np.minimum((vals - cmin)/(cmax - cmin),1),0)
         elif len(vals) == 1:
             vals = np.array([1])
         # Return colors
