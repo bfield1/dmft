@@ -64,7 +64,7 @@ def sweep_plotter(ymin=None, ymax=None, ylabel='', logx=False):
                 plotf = ax.loglog
             else:
                 plotf = ax.plot
-            plotf(vals, data, linestyle=linestyle, color=color, marker=marker)
+            plotf(vals, data, linestyle=linestyle, color=color, marker=marker, **kwargs)
             ax.set_ylim(ymin, ymax)
             ax.set_xlim(xmin, xmax)
             # Annotate
