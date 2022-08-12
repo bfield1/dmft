@@ -512,7 +512,7 @@ def plot_effective_spin(A):
     return effective_spin_from_archive(A)
 
 @wrap_plot
-@sweep_plotter(ymin=0, ymax=0.25, ylabel=r'$\chi$')
+@sweep_plotter(ymin=0, ymax=None, ylabel=r'$\chi$')
 def plot_O_tau(A):
     """Plots the integrated O_tau (e.g. spin susceptibility) from different archives"""
     return integrate_O_tau_from_archive(A)
