@@ -83,7 +83,8 @@ def plot_spectrum(archive_list, colors, vals=None, choice='Chi2Curvature',
         ax=None, colorbar=True, legend=False, offset=0, legendlabel='',
         xmin=None, xmax=None, block=None, fmt='{}', logcb=False,
         annotate=False, annotate_offset=0, xlabel=None, ylabel=None,
-        special_annotate='{}', special_annotate_idx=0, cmin=None, cmax=None):
+        special_annotate='{}', special_annotate_idx=0, cmin=None, cmax=None,
+        annotate_kw=dict(), alternate_annotate=False):
     """
     Plots the spectra from archive_list on the same Axes
 
@@ -120,6 +121,11 @@ def plot_spectrum(archive_list, colors, vals=None, choice='Chi2Curvature',
         special_annotate_idx - int
         cmin, cmax - numbers, optional. If generating colors, normalise vals to
             be in this range.
+        annotate_kw - dict, optional. Extra keyword arguments to pass to
+            ax.text when writing the annotation text. c, ha, and va are already
+            taken.
+        alternate_annotate - Boolean, default False. Alternate between writing
+            annotation on left and right.
     """
     # Get colors
     colors = _choose_colors(colors, vals, len(archive_list), logcb,
@@ -157,23 +163,41 @@ def plot_spectrum(archive_list, colors, vals=None, choice='Chi2Curvature',
             ax.plot(omega, A, c=colors[i])
         if annotate and vals is not None:
             # Draw label on the curve (or near enough to it)
-            # Where will we draw? Far right.
-            if xmax is None:
-                x = max(omega)
+            # Where will we draw?
+            if alternate_annotate and i % 2 == 1:
+                # Far left
+                if xmin is None:
+                    x = min(omega)
+                else:
+                    x = xmin
+                # Get y at far left
+                if x <= min(omega):
+                    y = A[0] + annotate_offset
+                else:
+                    # Need to grab the visible y at the far left of the plot
+                    # Get the index of minimum omega
+                    idx = len(omega[omega < x])
+                    y = A[idx+1] + annotate_offset
+                ha = 'left' # Horizontal alignment
             else:
-                x = xmax
-            # Get y at far right
-            if x >= max(omega):
-                y = A[-1] + annotate_offset
-            else:
-                # Need to grab the visible y at the far right of the plot
-                # Get the index of maximum omega
-                idx = len(omega[omega < x])
-                y = A[idx] + annotate_offset
+                # Far right
+                if xmax is None:
+                    x = max(omega)
+                else:
+                    x = xmax
+                # Get y at far right
+                if x >= max(omega):
+                    y = A[-1] + annotate_offset
+                else:
+                    # Need to grab the visible y at the far right of the plot
+                    # Get the index of maximum omega
+                    idx = len(omega[omega < x])
+                    y = A[idx] + annotate_offset
+                ha = 'right' # horizontal alignment
             txt = fmt.format(vals[i])
             if i == special_annotate_idx%len(vals) and isinstance(special_annotate, str):
                 txt = special_annotate.format(txt)
-            ax.text(x, y, txt, c=colors[i], ha='right', va='bottom')
+            ax.text(x, y, txt, c=colors[i], ha=ha, va='bottom', **annotate_kw)
     # Adjust the maximum of the plot, because it defaults to the ylim of
     # the first spectrum plotted
     ax.autoscale()
