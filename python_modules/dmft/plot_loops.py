@@ -25,7 +25,7 @@ except ImportError:
     import dmft.faketriqs.triqs_maxent as me
 
 from dmft.maxent import MaxEnt
-from dmft.utils import h5_read_full_path, archive_reader
+from dmft.utils import h5_read_full_path, archive_reader, get_last_loop
 from dmft.measure import quasiparticle_residue
 
 
@@ -80,7 +80,9 @@ def wrap_plot(func):
 @archive_reader
 def count_loops(archive):
     """Returns the number of DMFT loops in archive"""
-    return len([k for k in archive if k[0:5] == 'loop-'])
+    #return len([k for k in archive if k[0:5] == 'loop-'])
+    # Reading the index of the highest loop allows for handling missing data.
+    return int(get_last_loop(archive)[5:])+1
 
 @archive_reader
 def get_maxent(archive, block='up', index=0):
