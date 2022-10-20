@@ -84,7 +84,7 @@ def plot_spectrum(archive_list, colors, vals=None, choice='Chi2Curvature',
         xmin=None, xmax=None, block=None, fmt='{}', logcb=False,
         annotate=False, annotate_offset=0, xlabel=None, ylabel=None,
         special_annotate='{}', special_annotate_idx=0, cmin=None, cmax=None,
-        annotate_kw=dict(), alternate_annotate=False):
+        annotate_kw=dict(), alternate_annotate=False, colorbar_kw=dict()):
     """
     Plots the spectra from archive_list on the same Axes
 
@@ -126,6 +126,9 @@ def plot_spectrum(archive_list, colors, vals=None, choice='Chi2Curvature',
             taken.
         alternate_annotate - Boolean, default False. Alternate between writing
             annotation on left and right.
+        colorbar_kw - dict, optional. Extra keyword arguments to pass to 
+            fig.colorbar when drawing the colorbar. ax and label are already
+            taken.
     """
     # Get colors
     colors = _choose_colors(colors, vals, len(archive_list), logcb,
@@ -217,14 +220,15 @@ def plot_spectrum(archive_list, colors, vals=None, choice='Chi2Curvature',
             ax.legend(fmtval, title=legendlabel)
     # Create the colorbar
     if colorbar:
-        make_colorbar(ax=ax, vals=vals, colors=colors, legendlabel=legendlabel, logcb=logcb)
+        make_colorbar(ax=ax, vals=vals, colors=colors, legendlabel=legendlabel,
+                logcb=logcb, **colorbar_kw)
 
 @wrap_plot
 def plot_maxent_chi(archive_list, colors, vals=None, choice='Chi2Curvature',
         ax=None, colorbar=False, legend=False, offset=0, legendlabel='',
         xmin=None, xmax=None, block=None, normalise=True, fmt='{}', logcb=False,
         annotate=True, annotate_offset=0, special_annotate='{}',
-        special_annotate_idx=0, cmin=None, cmax=None):
+        special_annotate_idx=0, cmin=None, cmax=None, colorbar_kw=dict()):
     """
     Plots metrics showing performance of MaxEnt
 
@@ -264,6 +268,9 @@ def plot_maxent_chi(archive_list, colors, vals=None, choice='Chi2Curvature',
         special_annotate_idx - int
         cmin, cmax - numbers, optional. If generating colors, normalise vals to
             be in this range.
+        colorbar_kw - dict, optional. Extra keyword arguments to pass to 
+            fig.colorbar when drawing the colorbar. ax and label are already
+            taken.
     """
     # Get colors
     colors = _choose_colors(colors, vals, len(archive_list), logcb,
@@ -340,7 +347,8 @@ def plot_maxent_chi(archive_list, colors, vals=None, choice='Chi2Curvature',
         ax.legend(labels=fmtval, handles=handles, title=legendlabel)
     # Create the colorbar
     if colorbar:
-        make_colorbar(ax=ax, vals=vals, colors=colors, legendlabel=legendlabel, logcb=logcb)
+        make_colorbar(ax=ax, vals=vals, colors=colors, legendlabel=legendlabel,
+                logcb=logcb, **colorbar_kw)
 
 def _choose_colors(colors, vals, n, log=False, cmin=None, cmax=None):
     """
@@ -427,7 +435,7 @@ def get_divergent_colors(cmap, vals, mid, low=None, high=None):
             truevals[vals > mid] = np.minimum(0.5 + (v - mid) / (high - mid) * 0.5, 1)
     return [cmap(v) for v in truevals]
 
-def make_colorbar(ax, colors, vals=None, legendlabel='', logcb=False):
+def make_colorbar(ax, colors, vals=None, legendlabel='', logcb=False, **kwargs):
     """
     Create a segmented colorbar from a list of values and colours.
 
@@ -438,6 +446,8 @@ def make_colorbar(ax, colors, vals=None, legendlabel='', logcb=False):
         colors - list of colors, or a str or None (if str or None provided,
             must include vals).
         legendlabel - str, title for colorbar.
+    Other keyword arguments are passed to fig.colorbar. ax and label are already
+    taken.
     Output: colorbar
     """
     # Choose the colors, if necessary
@@ -505,7 +515,7 @@ def make_colorbar(ax, colors, vals=None, legendlabel='', logcb=False):
         # Integers are centred on each color
     # Create the colorbar
     return fig.colorbar(cm.ScalarMappable(cmap=cmap, norm=norm), ax=ax,
-            label=legendlabel)
+            label=legendlabel, **kwargs)
 
 
 @sweep_plotter(ymin=0, ymax=2, ylabel='Density $n$')
