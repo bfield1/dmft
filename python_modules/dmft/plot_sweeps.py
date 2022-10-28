@@ -28,7 +28,8 @@ def sweep_plotter(ymin=None, ymax=None, ylabel='', logx=False):
     def decorator(func):
         def plotter(archive_list, vals=None, ax=None, color=None, xlabel='',
                 marker='o', ymin=ymin, ymax=ymax, ylabel=ylabel, logx=logx,
-                logy=False, xmin=None, xmax=None, linestyle='None', **kwargs):
+                logy=False, xmin=None, xmax=None, linestyle='None',
+                permissive=False, **kwargs):
             """
             Inputs:
                 archive_list - list of strs pointing to h5 archives written by dmft
@@ -46,12 +47,22 @@ def sweep_plotter(ymin=None, ymax=None, ylabel='', logx=False):
                 xmin - number. Lower x-axis limit
                 xmax - number. Upper x-axis limit
                 linestyle - str. matplotlib linestyle (default 'None')
+                permissive - Boolean, skip error values instead of raising
             """
             # Verify that lengths match
             if vals is not None and len(archive_list) != len(vals):
                 raise ValueError("Length of archive_list and vals must match")
             # Load the data
-            data = [func(A) for A in archive_list]
+            data = []
+            for A in archive_list:
+                try:
+                    data.append(func(A))
+                except:
+                    if permissive:
+                        data.append(None)
+                    else:
+                        raise
+            #data = [func(A) for A in archive_list]
             # If vals is None, assume we want sequential integers
             if vals is None:
                 vals = np.arange(0,len(archive_list))
@@ -73,7 +84,8 @@ def sweep_plotter(ymin=None, ymax=None, ylabel='', logx=False):
         # Update the documentation to fit the original function
         # As I want to concatenate docstrings, I need to do it
         # manually rather than using functools.wrap
-        plotter.__doc__ = func.__doc__ + plotter.__doc__
+        if func.__doc__ is not None:
+            plotter.__doc__ = func.__doc__ + plotter.__doc__
         plotter.__name__ = func.__name__
         return plotter
     return decorator
