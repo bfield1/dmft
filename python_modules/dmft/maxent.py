@@ -37,7 +37,7 @@ from dmft.logging.writelog import find_unique_name
 def wrap_plot(func):
     """
     Boilerplate for a plotting function.
-    Sets the Axes if provided. Saves and displaces the figure according
+    Sets the Axes if provided. Saves and displays the figure according
     to arguments. Returns Figure and Axes.
     Assumes that func will by some means grab the current axes or generate
     them if they do not exist, typically by calling plt.plot.
@@ -107,7 +107,8 @@ def spectrum_plotter(func):
     # Update the documentation to fit the original function
     # As I want to concatenate docstrings, I need to do it
     # manually rather than using functools.wrap
-    plotter.__doc__ = func.__doc__ + plotter.__doc__
+    if func.__doc__:
+        plotter.__doc__ = func.__doc__ + plotter.__doc__
     plotter.__name__ = func.__name__
     return plotter
 
@@ -403,6 +404,96 @@ class MaxEnt():
         # Draw the legend
         if legend:
             ax.legend()
+    #
+    def get_spectrum_curvature_comparison(self, cutoff=0.5, endpoints=True,
+            probability=False):
+        """
+        Get multiple spectra to represent broadness in Chi2Curvature
+
+        Inputs:
+            cutoff - number between 0 and 1. Fraction of maximum curvature to
+                keep or discard.
+            endpoints - Boolean. If True, also keep the points on either side
+                of the cutoff. This guarantees at least three curves.
+            probability - Boolean. If True, use probability instead of
+                Chi2Curvature
+        Outputs:
+            spectra - (N,M) array (M = len(omega))
+            curvature - (N,) array of numbers
+            alpha - (N,) DataAlphaMesh
+        """
+        if probability:
+            all_curvature = np.exp(self.data.probability-np.nanmax(self.data.probability))
+        else:
+            all_curvature = np.asarray(self.data.analyzer_results['Chi2CurvatureAnalyzer']['curvature'])
+        # Filter: find points with high enough curvature/weighting
+        mask = all_curvature >= np.nanmax(all_curvature) * cutoff
+        # A warning if we have a multi-peak structure, because that indicates
+        # poor quality data
+        # Multiple peaks: from if we have a gap in the mask
+        ispeak = False
+        isout = False
+        for val in mask:
+            # We have found another peak after exiting one peak.
+            if val and isout:
+                if probability:
+                    logging.warning("Multiple peaks detected in probability of MaxEnt")
+                else:
+                    logging.warning("Multiple peaks detected in Chi2Curvature of MaxEnt")
+                logging.warning("This implies noisy DMFT data. Proceed with caution.")
+                break
+            # We have entered a peak
+            if val:
+                ispeak = True
+            # We have exited a peak
+            elif (not val) and (ispeak):
+                isout = True
+        # Back to the job at hand
+        # Extend the endpoints
+        if endpoints:
+            # Case of a very short array
+            if len(mask) < 3:
+                mask = np.ones(len(mask), dtype=bool)
+            else:
+                # Use convolution spread each True to include adjacent values
+                mask = np.convolve(mask, np.ones(3, dtype=bool), mode='same')
+        # Get the desired alpha and curvature values
+        alpha = self.alpha[mask].copy()
+        curvature = all_curvature[mask]
+        # Get the desired spectra
+        spectra = self.data.A[mask].copy()
+        return spectra, curvature, alpha
+    #
+    @spectrum_plotter
+    def plot_spectrum_uncertainty(self, choice='Chi2Curvature', color=None,
+            cutoff=0.5, endpoints=True, plot_alpha=0.5, **kwargs):
+        """
+        Plots the spectral function with shading for the uncertainty
+
+        Inputs:
+            choice - string, 'Chi2Curvature' or 'Chi2CurvatureAnalyzer' or
+                'Classic' or 'ClassicAnalyzer'
+            color - color argument for matplotlib.pyplot.plot
+            cutoff - number between 0 and 1. Fraction of maximum curvature to
+                keep or discard.
+            endpoints - Boolean. If True, also keep the points on either side
+                of the cutoff. This guarantees at least three curves.
+            plot_alpha - number or None. Transparency for shaded region
+        """
+        # Validate choice
+        allowed_choices = ['Chi2Curvature', 'Chi2CurvatureAnalyzer', 'Classic', 'ClassicAnalyzer']
+        if choice not in allowed_choices:
+            raise ValueError(f"choice={choice} was given, but choice must be one of {allowed_choices}")
+        # Get the main spectrum
+        ax = kwargs['ax']
+        A = self.get_spectrum(choice)
+        # Get the uncertainties
+        spec, _, _ = self.get_spectrum_curvature_comparison(cutoff, endpoints,
+                probability=('Classic' in choice))
+        # Plot
+        ax.plot(self.omega, A, c=color)
+        ax.fill_between(self.omega, spec[0], spec[-1], color=color,
+                alpha=plot_alpha)
     # Mirror a few of the internal plotting functions
     @wrap_plot
     def plot_chi2(self, *args, **kwargs):

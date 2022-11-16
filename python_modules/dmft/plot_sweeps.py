@@ -96,7 +96,9 @@ def plot_spectrum(archive_list, colors, vals=None, choice='Chi2Curvature',
         xmin=None, xmax=None, block=None, fmt='{}', logcb=False,
         annotate=False, annotate_offset=0, xlabel=None, ylabel=None,
         special_annotate='{}', special_annotate_idx=0, cmin=None, cmax=None,
-        annotate_kw=dict(), alternate_annotate=False, colorbar_kw=dict()):
+        annotate_kw=dict(), alternate_annotate=False, colorbar_kw=dict(),
+        uncertainty_cutoff=1, uncertainty_endpoints=True,
+        uncertainty_alpha=0.5):
     """
     Plots the spectra from archive_list on the same Axes
 
@@ -141,6 +143,15 @@ def plot_spectrum(archive_list, colors, vals=None, choice='Chi2Curvature',
         colorbar_kw - dict, optional. Extra keyword arguments to pass to 
             fig.colorbar when drawing the colorbar. ax and label are already
             taken.
+        uncertainty_cutoff - number between 0 and 1. If less than 1, enables
+            drawing a shaded region corresponding to uncertainties in the 
+            analytic continuation of the spectra. For 'Chi2Curvature', this
+            is based on the width of the curvature peak, while for 'Classic'
+            this the based on the width of the probability peak.
+            This value determines the fractional cut-off value.
+        uncertainty_endpoints - Boolean. Whether to extend the spectra sampled
+            to include those just beyond the endpoints.
+        uncertainty_alpha - number or None. Alpha value for plotting the shaded             region (the color otherwise matches the curve)
     """
     # Get colors
     colors = _choose_colors(colors, vals, len(archive_list), logcb,
@@ -161,7 +172,14 @@ def plot_spectrum(archive_list, colors, vals=None, choice='Chi2Curvature',
         # We can also use normal plotting if no offset is called for
         # This also covers setting up the axes labels
         if i == 0 or offset == 0:
-            maxents[i].plot_spectrum(choice=choice, ax=ax, inplace=False,
+            if uncertainty_cutoff < 1:
+                maxents[i].plot_spectrum_uncertainty(choice=choice, ax=ax,
+                        inplace=False, color=colors[i],
+                        cutoff=uncertainty_cutoff,
+                        endpoints=uncertainty_endpoints,
+                        plot_alpha=uncertainty_alpha)
+            else:
+                maxents[i].plot_spectrum(choice=choice, ax=ax, inplace=False,
                     color=colors[i])
             if annotate and vals is not None:
                 # We'll need this later
@@ -176,6 +194,12 @@ def plot_spectrum(archive_list, colors, vals=None, choice='Chi2Curvature',
             A += offset * i
             # Plot
             ax.plot(omega, A, c=colors[i])
+            # Do the uncertainty plotting
+            if uncertainty_cutoff < 1:
+                spec, _, _ = maxents[i].get_spectrum_curvature_comparison(
+                        cutoff=uncertainty_cutoff, endpoints=uncertainty_endpoints, probability=('Classic' in choice))
+                ax.fill_between(omega, spec[0] + offset*i, spec[-1] + offset*i,
+                        color=colors[i], alpha=uncertainty_alpha)
         if annotate and vals is not None:
             # Draw label on the curve (or near enough to it)
             # Where will we draw?
