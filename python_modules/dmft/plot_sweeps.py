@@ -94,11 +94,12 @@ def sweep_plotter(ymin=None, ymax=None, ylabel='', logx=False):
 def plot_spectrum(archive_list, colors, vals=None, choice='Chi2Curvature',
         ax=None, colorbar=True, legend=False, offset=0, legendlabel='',
         xmin=None, xmax=None, block=None, fmt='{}', logcb=False,
-        annotate=False, annotate_offset=0, xlabel=None, ylabel=None,
+        annotate=False, annotate_offset=0, xlabel=r'$\omega$',
+        ylabel=r'$A(\omega)$',
         special_annotate='{}', special_annotate_idx=0, cmin=None, cmax=None,
         annotate_kw=dict(), alternate_annotate=False, colorbar_kw=dict(),
         uncertainty_cutoff=1, uncertainty_endpoints=True,
-        uncertainty_alpha=0.5):
+        uncertainty_alpha=0.5, scale_energy=1):
     """
     Plots the spectra from archive_list on the same Axes
 
@@ -127,8 +128,8 @@ def plot_spectrum(archive_list, colors, vals=None, choice='Chi2Curvature',
         logcb - Boolean, log scale in colorbar. Default False.
         annotate - Boolean, draw vals directly on the curves. Default False
         annotate_offset - number, vertical offset for annotate text. Default 0.
-        xlabel - str, optional. If provided, overrides plot xlabel
-        ylabel - str, optional. If provided, overrides plot ylabel
+        xlabel - str, plot xlabel
+        ylabel - str, plot ylabel
         special_annotate - str, optional, for formatting vals in annotate with
             a special value for the one at special_annotate_idx. Is called
             after fmt.
@@ -152,6 +153,8 @@ def plot_spectrum(archive_list, colors, vals=None, choice='Chi2Curvature',
         uncertainty_endpoints - Boolean. Whether to extend the spectra sampled
             to include those just beyond the endpoints.
         uncertainty_alpha - number or None. Alpha value for plotting the shaded             region (the color otherwise matches the curve)
+        scale_energy - number. Rescale all energies to be in these units.
+            i.e. omega is multiplied by it, spectrum is divided by it.
     """
     # Get colors
     colors = _choose_colors(colors, vals, len(archive_list), logcb,
@@ -168,38 +171,21 @@ def plot_spectrum(archive_list, colors, vals=None, choice='Chi2Curvature',
     maxents = [MaxEnt.load(A, block=block) for A in archive_list]
     # Plot the spectra
     for i in range(len(maxents)):
-        # First spectrum we can use normal plotting.
-        # We can also use normal plotting if no offset is called for
-        # This also covers setting up the axes labels
-        if i == 0 or offset == 0:
-            if uncertainty_cutoff < 1:
-                maxents[i].plot_spectrum_uncertainty(choice=choice, ax=ax,
-                        inplace=False, color=colors[i],
-                        cutoff=uncertainty_cutoff,
-                        endpoints=uncertainty_endpoints,
-                        plot_alpha=uncertainty_alpha)
-            else:
-                maxents[i].plot_spectrum(choice=choice, ax=ax, inplace=False,
-                    color=colors[i])
-            if annotate and vals is not None:
-                # We'll need this later
-                A = maxents[i].get_spectrum(choice)
-                omega = maxents[i].omega
-        # Otherwise, need to do some manual work to get an offset.
-        else:
-            # Get data for the spectrum
-            A = maxents[i].get_spectrum(choice)
-            omega = maxents[i].omega
-            # Offset
-            A += offset * i
-            # Plot
-            ax.plot(omega, A, c=colors[i])
-            # Do the uncertainty plotting
-            if uncertainty_cutoff < 1:
-                spec, _, _ = maxents[i].get_spectrum_curvature_comparison(
-                        cutoff=uncertainty_cutoff, endpoints=uncertainty_endpoints, probability=('Classic' in choice))
-                ax.fill_between(omega, spec[0] + offset*i, spec[-1] + offset*i,
-                        color=colors[i], alpha=uncertainty_alpha)
+        # Get data for the spectrum
+        A = maxents[i].get_spectrum(choice) / scale_energy
+        omega = maxents[i].omega * scale_energy
+        # Offset
+        A += offset * i
+        # Plot
+        ax.plot(omega, A, c=colors[i])
+        # Do the uncertainty plotting
+        if uncertainty_cutoff < 1:
+            spec, _, _ = maxents[i].get_spectrum_curvature_comparison(
+                    cutoff=uncertainty_cutoff, endpoints=uncertainty_endpoints,
+                    probability=('Classic' in choice))
+            spec /= scale_energy
+            ax.fill_between(omega, spec[0] + offset*i, spec[-1] + offset*i,
+                    color=colors[i], alpha=uncertainty_alpha)
         if annotate and vals is not None:
             # Draw label on the curve (or near enough to it)
             # Where will we draw?
@@ -237,16 +223,12 @@ def plot_spectrum(archive_list, colors, vals=None, choice='Chi2Curvature',
             if i == special_annotate_idx%len(vals) and isinstance(special_annotate, str):
                 txt = special_annotate.format(txt)
             ax.text(x, y, txt, c=colors[i], ha=ha, va='bottom', **annotate_kw)
-    # Adjust the maximum of the plot, because it defaults to the ylim of
-    # the first spectrum plotted
-    ax.autoscale()
+    # Adjust the maximum of the plot
     ax.set_ylim(bottom=0)
     ax.set_xlim(xmin, xmax)
     # Plot labels
-    if xlabel is not None:
-        ax.set_xlabel(xlabel)
-    if ylabel is not None:
-        ax.set_ylabel(ylabel)
+    ax.set_xlabel(xlabel)
+    ax.set_ylabel(ylabel)
     # Create the legend
     if legend:
         if vals is None:
