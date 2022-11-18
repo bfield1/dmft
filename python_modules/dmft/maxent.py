@@ -491,9 +491,9 @@ class MaxEnt():
         spec, _, _ = self.get_spectrum_curvature_comparison(cutoff, endpoints,
                 probability=('Classic' in choice))
         # Plot
-        ax.plot(self.omega, A, c=color)
-        ax.fill_between(self.omega, spec[0], spec[-1], color=color,
-                alpha=plot_alpha)
+        line = ax.plot(self.omega, A, c=color)
+        ax.fill_between(self.omega, spec[0], spec[-1],
+                color=line[0].get_color(), alpha=plot_alpha)
     # Mirror a few of the internal plotting functions
     @wrap_plot
     def plot_chi2(self, *args, **kwargs):
