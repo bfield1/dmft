@@ -294,7 +294,7 @@ class MaxEnt():
             h5_write_full_path(archive, err, name+'/maxent_error')
         if self._save_D:
             # The Default Model, not default value
-            h5_write_full_path(archive, self.D, name+'/default_model')
+            h5_write_full_path(archive, self.D.D, name+'/default_model')
     # Now we want some plotting scripts to show the results
     def get_spectrum(self, choice=None):
         """
