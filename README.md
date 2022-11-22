@@ -1,5 +1,7 @@
 Scripts which interface with TRIQS to perform DMFT calculations.
 
+This is a pre-release. This software is not yet licensed for public use.
+
 To run TRIQS on the cluster:
  - module load singularity
  - singularity pull docker://flatironinstitute/triqs

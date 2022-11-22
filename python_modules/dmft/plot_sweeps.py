@@ -28,7 +28,8 @@ def sweep_plotter(ymin=None, ymax=None, ylabel='', logx=False):
     def decorator(func):
         def plotter(archive_list, vals=None, ax=None, color=None, xlabel='',
                 marker='o', ymin=ymin, ymax=ymax, ylabel=ylabel, logx=logx,
-                logy=False, xmin=None, xmax=None, linestyle='None', **kwargs):
+                logy=False, xmin=None, xmax=None, linestyle='None',
+                permissive=False, **kwargs):
             """
             Inputs:
                 archive_list - list of strs pointing to h5 archives written by dmft
@@ -46,12 +47,22 @@ def sweep_plotter(ymin=None, ymax=None, ylabel='', logx=False):
                 xmin - number. Lower x-axis limit
                 xmax - number. Upper x-axis limit
                 linestyle - str. matplotlib linestyle (default 'None')
+                permissive - Boolean, skip error values instead of raising
             """
             # Verify that lengths match
             if vals is not None and len(archive_list) != len(vals):
                 raise ValueError("Length of archive_list and vals must match")
             # Load the data
-            data = [func(A) for A in archive_list]
+            data = []
+            for A in archive_list:
+                try:
+                    data.append(func(A))
+                except:
+                    if permissive:
+                        data.append(None)
+                    else:
+                        raise
+            #data = [func(A) for A in archive_list]
             # If vals is None, assume we want sequential integers
             if vals is None:
                 vals = np.arange(0,len(archive_list))
@@ -73,7 +84,8 @@ def sweep_plotter(ymin=None, ymax=None, ylabel='', logx=False):
         # Update the documentation to fit the original function
         # As I want to concatenate docstrings, I need to do it
         # manually rather than using functools.wrap
-        plotter.__doc__ = func.__doc__ + plotter.__doc__
+        if func.__doc__ is not None:
+            plotter.__doc__ = func.__doc__ + plotter.__doc__
         plotter.__name__ = func.__name__
         return plotter
     return decorator
@@ -82,9 +94,12 @@ def sweep_plotter(ymin=None, ymax=None, ylabel='', logx=False):
 def plot_spectrum(archive_list, colors, vals=None, choice='Chi2Curvature',
         ax=None, colorbar=True, legend=False, offset=0, legendlabel='',
         xmin=None, xmax=None, block=None, fmt='{}', logcb=False,
-        annotate=False, annotate_offset=0, xlabel=None, ylabel=None,
+        annotate=False, annotate_offset=0, xlabel=r'$\omega$',
+        ylabel=r'$A(\omega)$',
         special_annotate='{}', special_annotate_idx=0, cmin=None, cmax=None,
-        annotate_kw=dict(), alternate_annotate=False):
+        annotate_kw=dict(), alternate_annotate=False, colorbar_kw=dict(),
+        uncertainty_cutoff=1, uncertainty_endpoints=True,
+        uncertainty_alpha=0.5, scale_energy=1):
     """
     Plots the spectra from archive_list on the same Axes
 
@@ -113,8 +128,8 @@ def plot_spectrum(archive_list, colors, vals=None, choice='Chi2Curvature',
         logcb - Boolean, log scale in colorbar. Default False.
         annotate - Boolean, draw vals directly on the curves. Default False
         annotate_offset - number, vertical offset for annotate text. Default 0.
-        xlabel - str, optional. If provided, overrides plot xlabel
-        ylabel - str, optional. If provided, overrides plot ylabel
+        xlabel - str, plot xlabel
+        ylabel - str, plot ylabel
         special_annotate - str, optional, for formatting vals in annotate with
             a special value for the one at special_annotate_idx. Is called
             after fmt.
@@ -126,6 +141,20 @@ def plot_spectrum(archive_list, colors, vals=None, choice='Chi2Curvature',
             taken.
         alternate_annotate - Boolean, default False. Alternate between writing
             annotation on left and right.
+        colorbar_kw - dict, optional. Extra keyword arguments to pass to 
+            fig.colorbar when drawing the colorbar. ax and label are already
+            taken.
+        uncertainty_cutoff - number between 0 and 1. If less than 1, enables
+            drawing a shaded region corresponding to uncertainties in the 
+            analytic continuation of the spectra. For 'Chi2Curvature', this
+            is based on the width of the curvature peak, while for 'Classic'
+            this the based on the width of the probability peak.
+            This value determines the fractional cut-off value.
+        uncertainty_endpoints - Boolean. Whether to extend the spectra sampled
+            to include those just beyond the endpoints.
+        uncertainty_alpha - number or None. Alpha value for plotting the shaded             region (the color otherwise matches the curve)
+        scale_energy - number. Rescale all energies to be in these units.
+            i.e. omega is multiplied by it, spectrum is divided by it.
     """
     # Get colors
     colors = _choose_colors(colors, vals, len(archive_list), logcb,
@@ -142,25 +171,21 @@ def plot_spectrum(archive_list, colors, vals=None, choice='Chi2Curvature',
     maxents = [MaxEnt.load(A, block=block) for A in archive_list]
     # Plot the spectra
     for i in range(len(maxents)):
-        # First spectrum we can use normal plotting.
-        # We can also use normal plotting if no offset is called for
-        # This also covers setting up the axes labels
-        if i == 0 or offset == 0:
-            maxents[i].plot_spectrum(choice=choice, ax=ax, inplace=False,
-                    color=colors[i])
-            if annotate and vals is not None:
-                # We'll need this later
-                A = maxents[i].get_spectrum(choice)
-                omega = maxents[i].omega
-        # Otherwise, need to do some manual work to get an offset.
-        else:
-            # Get data for the spectrum
-            A = maxents[i].get_spectrum(choice)
-            omega = maxents[i].omega
-            # Offset
-            A += offset * i
-            # Plot
-            ax.plot(omega, A, c=colors[i])
+        # Get data for the spectrum
+        A = maxents[i].get_spectrum(choice) / scale_energy
+        omega = maxents[i].omega * scale_energy
+        # Offset
+        A += offset * i
+        # Plot
+        ax.plot(omega, A, c=colors[i])
+        # Do the uncertainty plotting
+        if uncertainty_cutoff < 1:
+            spec, _, _ = maxents[i].get_spectrum_curvature_comparison(
+                    cutoff=uncertainty_cutoff, endpoints=uncertainty_endpoints,
+                    probability=('Classic' in choice))
+            spec /= scale_energy
+            ax.fill_between(omega, spec[0] + offset*i, spec[-1] + offset*i,
+                    color=colors[i], alpha=uncertainty_alpha)
         if annotate and vals is not None:
             # Draw label on the curve (or near enough to it)
             # Where will we draw?
@@ -198,16 +223,12 @@ def plot_spectrum(archive_list, colors, vals=None, choice='Chi2Curvature',
             if i == special_annotate_idx%len(vals) and isinstance(special_annotate, str):
                 txt = special_annotate.format(txt)
             ax.text(x, y, txt, c=colors[i], ha=ha, va='bottom', **annotate_kw)
-    # Adjust the maximum of the plot, because it defaults to the ylim of
-    # the first spectrum plotted
-    ax.autoscale()
+    # Adjust the maximum of the plot
     ax.set_ylim(bottom=0)
     ax.set_xlim(xmin, xmax)
     # Plot labels
-    if xlabel is not None:
-        ax.set_xlabel(xlabel)
-    if ylabel is not None:
-        ax.set_ylabel(ylabel)
+    ax.set_xlabel(xlabel)
+    ax.set_ylabel(ylabel)
     # Create the legend
     if legend:
         if vals is None:
@@ -217,14 +238,15 @@ def plot_spectrum(archive_list, colors, vals=None, choice='Chi2Curvature',
             ax.legend(fmtval, title=legendlabel)
     # Create the colorbar
     if colorbar:
-        make_colorbar(ax=ax, vals=vals, colors=colors, legendlabel=legendlabel, logcb=logcb)
+        make_colorbar(ax=ax, vals=vals, colors=colors, legendlabel=legendlabel,
+                logcb=logcb, **colorbar_kw)
 
 @wrap_plot
 def plot_maxent_chi(archive_list, colors, vals=None, choice='Chi2Curvature',
         ax=None, colorbar=False, legend=False, offset=0, legendlabel='',
         xmin=None, xmax=None, block=None, normalise=True, fmt='{}', logcb=False,
         annotate=True, annotate_offset=0, special_annotate='{}',
-        special_annotate_idx=0, cmin=None, cmax=None):
+        special_annotate_idx=0, cmin=None, cmax=None, colorbar_kw=dict()):
     """
     Plots metrics showing performance of MaxEnt
 
@@ -264,6 +286,9 @@ def plot_maxent_chi(archive_list, colors, vals=None, choice='Chi2Curvature',
         special_annotate_idx - int
         cmin, cmax - numbers, optional. If generating colors, normalise vals to
             be in this range.
+        colorbar_kw - dict, optional. Extra keyword arguments to pass to 
+            fig.colorbar when drawing the colorbar. ax and label are already
+            taken.
     """
     # Get colors
     colors = _choose_colors(colors, vals, len(archive_list), logcb,
@@ -340,7 +365,8 @@ def plot_maxent_chi(archive_list, colors, vals=None, choice='Chi2Curvature',
         ax.legend(labels=fmtval, handles=handles, title=legendlabel)
     # Create the colorbar
     if colorbar:
-        make_colorbar(ax=ax, vals=vals, colors=colors, legendlabel=legendlabel, logcb=logcb)
+        make_colorbar(ax=ax, vals=vals, colors=colors, legendlabel=legendlabel,
+                logcb=logcb, **colorbar_kw)
 
 def _choose_colors(colors, vals, n, log=False, cmin=None, cmax=None):
     """
@@ -427,7 +453,7 @@ def get_divergent_colors(cmap, vals, mid, low=None, high=None):
             truevals[vals > mid] = np.minimum(0.5 + (v - mid) / (high - mid) * 0.5, 1)
     return [cmap(v) for v in truevals]
 
-def make_colorbar(ax, colors, vals=None, legendlabel='', logcb=False):
+def make_colorbar(ax, colors, vals=None, legendlabel='', logcb=False, **kwargs):
     """
     Create a segmented colorbar from a list of values and colours.
 
@@ -438,6 +464,8 @@ def make_colorbar(ax, colors, vals=None, legendlabel='', logcb=False):
         colors - list of colors, or a str or None (if str or None provided,
             must include vals).
         legendlabel - str, title for colorbar.
+    Other keyword arguments are passed to fig.colorbar. ax and label are already
+    taken.
     Output: colorbar
     """
     # Choose the colors, if necessary
@@ -505,7 +533,7 @@ def make_colorbar(ax, colors, vals=None, legendlabel='', logcb=False):
         # Integers are centred on each color
     # Create the colorbar
     return fig.colorbar(cm.ScalarMappable(cmap=cmap, norm=norm), ax=ax,
-            label=legendlabel)
+            label=legendlabel, **kwargs)
 
 
 @sweep_plotter(ymin=0, ymax=2, ylabel='Density $n$')
