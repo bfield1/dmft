@@ -467,7 +467,7 @@ if __name__ == "__main__":
     # Is this a continuation job?
     continuation = args.lattice == 'continue'
     # Is this a substrate job?
-    if (continuation and args.substrate) or (args.V is not None) or (args.bandwidth is not None) or args.impurity:
+    if (continuation and args.substrate) or (args.V is not None) or (args.bandwidth is not None) or (args.lattice == 'impurity'):
         substrate = True
         # Validation of supplied arguments
         if not continuation and (args.V is None or args.bandwidth is None):
