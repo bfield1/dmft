@@ -18,6 +18,7 @@
 
 
 from .omega_meshes import HyperbolicOmegaMesh
+from .alpha_meshes import LogAlphaMesh
 import numpy as np
 import copy
 

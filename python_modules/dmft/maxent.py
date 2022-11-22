@@ -3,6 +3,7 @@ Runs basic MaxEnt processing
 """
 import argparse
 from warnings import warn
+import warnings
 import functools
 import logging
 
@@ -33,6 +34,8 @@ except ImportError:
 import dmft.version
 from dmft.utils import h5_write_full_path, h5_read_full_path, get_last_loop, archive_reader2
 from dmft.logging.writelog import find_unique_name
+
+logger = logging.getLogger(__name__)
 
 def wrap_plot(func):
     """
@@ -216,6 +219,11 @@ class MaxEnt():
         self.set_G_tau(G_tau_block[block][index,index])
     def set_error(self, err):
         self.tm.set_error(err)
+    def estimate_error(self):
+        """Sets the error from inspecting G_tau"""
+        err = estimate_error(self.tm.G)
+        self.tm.set_error(err)
+        return err
     def run(self):
         """Runs MaxEnt and gets the results."""
         self.results = self.tm.run()
@@ -696,6 +704,52 @@ def get_last_maxent(archive):
     # Return the results
     return SG[key]['results']
 
+def estimate_error(G, permissive=True):
+    """
+    Estimates the std dev of G(tau) by looking at a flat region in the middle
+    """
+    # Handle the input, converting to a simple array
+    if isinstance(G, gf.BlockGf):
+        if not permissive:
+            raise TypeError("Received BlockGf instead of Gf")
+        # Pick the first element
+        G = G[next(G.indices)]
+    if isinstance(G, gf.Gf):
+        if (G.target_rank > 0):
+            if not permissive:
+                raise TypeError("target_rank > 0. Pass G[0,0] instead")
+            # If we've received a matrix-valued Green's function,
+            # pick the first index
+            G = G[(0,)*G.target_rank]
+        # Now check if we have the right array
+        if not isinstance(G.mesh, gf.MeshImTime):
+            raise TypeError("Can only estimate error with imaginary time mesh")
+        # Extract data
+        Gdata = G.data.real.copy()
+    else:
+        # Assume G is array-like
+        Gdata = np.array(np.real(G), dtype=float)
+    # We'll do a sort of bisection search, reducing the window until the change
+    # is less than the standard deviation
+    imin = 0
+    imax = len(Gdata)
+    olderr = np.inf
+    while imin + 1 < imax:
+        logger.debug(f"Indices from {imin} to {imax}")
+        # Get the standard deviation of the window under consideration
+        err = np.std(Gdata[imin:imax])
+        logger.debug(f"G varies from {Gdata[imin:imax].min()} to {Gdata[imin:imax].max()}")
+        logger.debug(f"Standard deviation in this window: {err}")
+        if olderr - err < err:
+            logger.debug(f"End condition achieved")
+            return err
+        olderr = err
+        diff = imax - imin
+        imin = int(np.ceil(imin + diff/4))
+        imax = int(np.floor(imax - diff/4))
+    logger.warn("Failed to find window for estimating error. Value inaccurate")
+    return err
+
 
 def write_metadata(archive, name='code'):
     """Records maxent version information to a HDF5 archive."""
@@ -712,7 +766,7 @@ if __name__ == "__main__":
     parser.add_argument("input", help="Input archive containing G_tau from DMFT.")
     parser.add_argument("output", nargs="?",
             help="Archive to write MaxEntResult to. Defaults in input, which I strongly recommend.")
-    parser.add_argument('-e','--error', type=float, default=1e-4, help="Error in G_tau")
+    parser.add_argument('-e','--error', type=float, help="Error in G_tau")
     parser.add_argument('--amin', type=float, help="Minimum alpha")
     parser.add_argument('--amax', type=float, help="Maximum alpha")
     parser.add_argument('--nalpha', type=int, help="Number of alpha points")
@@ -789,6 +843,8 @@ if __name__ == "__main__":
         if args.std is not None:
             error = standard_deviation_from_archive(args.input, args.std,
                         real=True, Gf='G_tau')
+        elif args.error is None:
+            error = estimate_error(G_tau)
         else:
             error = args.error
         maxent.set_error(error)
