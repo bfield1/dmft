@@ -203,9 +203,39 @@ def get_maxent(archive, block='up', index=0):
             mylist[entry['loop']] = entry['maxent']
         return mylist
 
+@archive_reader
+def get_pade(archive, block='up', index=0, window=(-50,50), validate=True):
+    """
+    Gets Pade spectra from all loops in an archive
+    
+    Inputs: archive - HDFArchive or string
+        block - string, 'up' or 'down' to filter
+        index - int, Green's function index to filter
+        window - tuple of 2 numbers, energy window for Pade approximation
+        validate - Boolean, whether to check if Pade spectra are sensible
+    Output:
+        List of None or tuples of 2 (N,) numpy arrays.
+        Each list index corresponds to a loop.
+        Each tuple has the energy axis and the spectrum.
+    """
+    total_loops = count_loops(archive)
+    results = []
+    for i in range(total_loops):
+        try:
+            results.append(dmft.measure.pade_spectrum_from_archive(archive, i,
+                window, validate=validate, block=block, indexL=index,
+                indexR=index))
+        except KeyError or ImportError:
+            # Either the loop doesn't exist, or TRIQS isn't installed and the
+            # pade hasn't been recorded.
+            results.append(None)
+    return results
+
 @wrap_plot
 @archive_reader
-def plot_spectrum(archive, block='up', choice='Chi2Curvature', ax=None, colorbar=True, trim=True, index=0):
+def plot_spectrum(archive, block='up', choice='Chi2Curvature', ax=None,
+        colorbar=True, trim=True, index=0, pade_window=(-50,50),
+        pade_validate=True):
     """
     Plots the spectral function as a function of DMFT loop
 
@@ -213,13 +243,21 @@ def plot_spectrum(archive, block='up', choice='Chi2Curvature', ax=None, colorbar
         block - string, up or down, which Green's function block to use
         choice - string or integer, which alpha value to use for MaxEnt
             analytic continuation for the spectral function.
+            May also be "Pade", in which case Pade approximants are used
+            instead of MaxEnt.
         colorbar - Boolean, whether to draw a colorbar.
         trim - Boolean (default True), whether to trim the loops range if it
             does not extend to the ends of the array
         index - int (default 0). Green's function index to consider.
+        pade_window - tuple of 2 numbers, energy window for Pade approximation
+        pade_validate - Boolean. Whether to check that Pade spectra are sensible
     """
+    pade = choice == 'Pade'
     # Load spectra
-    spectra = get_maxent(archive, block, index)
+    if pade:
+        spectra = get_pade(archive, block, index, window=pade_window, validate=pade_validate)
+    else:
+        spectra = get_maxent(archive, block, index)
     minloop = 0
     if trim:
         # Trim out leading nans
@@ -233,14 +271,31 @@ def plot_spectrum(archive, block='up', choice='Chi2Curvature', ax=None, colorbar
     # Plot spectra
     for i in range(loops):
         if spectra[i] is not None:
-            spectra[i].plot_spectrum(choice=choice, ax=ax, inplace=False,
+            if pade:
+                ax.plot(*spectra[i], color=[i/max(loops-1,1), 0, 0])
+            else:
+                spectra[i].plot_spectrum(choice=choice, ax=ax, inplace=False,
                     color=[i/max(loops-1,1), 0, 0])
             # Colour the line a shade of red.
             # i goes from 0 to loops-1. If loops is 1, use max to not do 1/0.
-    # Adjust the maximum of the plot, because it defaults to the ylim
-    # of the first spectrum plotted.
-    ax.autoscale()
-    ax.set_ylim(bottom=0)
+    # Format/layout
+    if pade:
+        # Set the labels
+        ax.set_xlabel(r'$\omega$')
+        ax.set_ylabel(r'$A(\omega)$')
+        # Set axis limits
+        # Find the minimum value. I don't trust Pade to be non-negative
+        # and we need to show if it has failed in this manner.
+        miny = 0
+        for S in spectra:
+            if S is not None:
+                miny = min(miny, S[1].min())
+        ax.set_ylim(bottom=miny)
+    else:
+        # Adjust the maximum of the plot, because it defaults to the ylim
+        # of the first spectrum plotted.
+        ax.autoscale()
+        ax.set_ylim(bottom=0)
     # Create the colorbar
     if colorbar:
         fig = ax.figure

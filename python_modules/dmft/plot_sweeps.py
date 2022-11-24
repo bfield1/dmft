@@ -13,6 +13,7 @@ import matplotlib.lines as mlines
 from dmft.maxent import MaxEnt
 from dmft.utils import h5_read_full_path, archive_reader
 from dmft.measure import quasiparticle_residue_from_archive, density_from_archive, effective_spin_from_archive, integrate_O_tau_from_archive, chiT_from_archive
+import dmft.measure
 from dmft.plot_loops import wrap_plot
 
 def sweep_plotter(ymin=None, ymax=None, ylabel='', logx=False):
@@ -99,7 +100,8 @@ def plot_spectrum(archive_list, colors, vals=None, choice='Chi2Curvature',
         special_annotate='{}', special_annotate_idx=0, cmin=None, cmax=None,
         annotate_kw=dict(), alternate_annotate=False, colorbar_kw=dict(),
         uncertainty_cutoff=1, uncertainty_endpoints=True,
-        uncertainty_alpha=0.5, scale_energy=1):
+        uncertainty_alpha=0.5, scale_energy=1, pade_window=(-50,50),
+        pade_validate=True):
     """
     Plots the spectra from archive_list on the same Axes
 
@@ -117,6 +119,7 @@ def plot_spectrum(archive_list, colors, vals=None, choice='Chi2Curvature',
             If legend=True, these are values to put in the legend entries.
             Optional.
         choice - string. MaxEnt Analyzer to use. Default 'Chi2Curvature'
+            Or 'Pade' if want to use Pade approximants instead of MaxEnt.
         colorbar - Boolean. Whether to draw a colorbar. Default True.
         legend - Boolean. Whether to draw a legend. Default False.
         offset - Non-negative number. Amount to shift each spectrum vertically
@@ -155,6 +158,8 @@ def plot_spectrum(archive_list, colors, vals=None, choice='Chi2Curvature',
         uncertainty_alpha - number or None. Alpha value for plotting the shaded             region (the color otherwise matches the curve)
         scale_energy - number. Rescale all energies to be in these units.
             i.e. omega is multiplied by it, spectrum is divided by it.
+        pade_window - tuple of 2 numbers, energy window for Pade approximation
+        pade_validate - Boolean. Whether to check that Pade spectra are sensible
     """
     # Get colors
     colors = _choose_colors(colors, vals, len(archive_list), logcb,
@@ -167,13 +172,25 @@ def plot_spectrum(archive_list, colors, vals=None, choice='Chi2Curvature',
     # Catch a trivial case: no data
     if len(archive_list) == 0:
         return
+    pade = choice == "Pade"
     # Load the data
-    maxents = [MaxEnt.load(A, block=block) for A in archive_list]
+    if pade:
+        if block is None:
+            block = 'up'
+        maxents = [dmft.measure.pade_spectrum_from_archive(A,
+            window=pade_window, validate=pade_validate, block=block)
+            for A in archive_list]
+    else:
+        maxents = [MaxEnt.load(A, block=block) for A in archive_list]
     # Plot the spectra
     for i in range(len(maxents)):
         # Get data for the spectrum
-        A = maxents[i].get_spectrum(choice) / scale_energy
-        omega = maxents[i].omega * scale_energy
+        if pade:
+            A = maxents[i][1]
+            omega = maxents[i][0]
+        else:
+            A = maxents[i].get_spectrum(choice) / scale_energy
+            omega = maxents[i].omega * scale_energy
         # Offset
         A += offset * i
         # Plot
@@ -224,7 +241,14 @@ def plot_spectrum(archive_list, colors, vals=None, choice='Chi2Curvature',
                 txt = special_annotate.format(txt)
             ax.text(x, y, txt, c=colors[i], ha=ha, va='bottom', **annotate_kw)
     # Adjust the maximum of the plot
-    ax.set_ylim(bottom=0)
+    ymin = 0
+    if pade:
+        # Find the minimum value. I don't trust Pade to be non-negative
+        # and we need to show if it has failed in this manner.
+        for S in maxents:
+            if S is not None:
+                ymin = min(ymin, S[1].min())
+    ax.set_ylim(bottom=ymin)
     ax.set_xlim(xmin, xmax)
     # Plot labels
     ax.set_xlabel(xlabel)
