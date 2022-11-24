@@ -66,12 +66,25 @@ class MeshReFreq(Mesh_Generic):
         super().__init__(x_min=omega_min, x_max=omega_max, n=n_max)
     def copy(self):
         return MeshReFreq(self.x_min, self.x_max, self.n)
+    @classmethod
+    def __factory_from_dict__(cls, name, D):
+        """This handles reading from h5"""
+        return cls(D["min"], D["max"], D["size"])
+
+register_class(MeshReFreq)
 
 class MeshReTime(Mesh_Generic):
     def __init__(self, t_min, t_max, n_max):
         super().__init__(x_min=t_min, x_max=t_max, n=n_max)
     def copy(self):
         return MeshReTime(self.x_min, self.x_max, self.n)
+    @classmethod
+    def __factory_from_dict__(cls, name, D):
+        """This handles reading from h5"""
+        # For MeshReTime, this is currently a guess from MeshReFreq.
+        return cls(D["min"], D["max"], D["size"])
+
+register_class(MeshReTime)
 
 class MeshImFreq(Mesh_Generic):
     def __init__(self, beta, S, n_max=1025):

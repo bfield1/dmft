@@ -149,3 +149,10 @@ def format_loop(archive, loop):
     elif isinstance(loop, int):
         loop = 'loop-{:03d}'.format(loop)
     return loop
+
+@archive_reader
+def count_loops(archive):
+    """Returns the number of DMFT loops in archive"""
+    #return len([k for k in archive if k[0:5] == 'loop-'])
+    # Reading the index of the highest loop allows for handling missing data.
+    return int(get_last_loop(archive)[5:])+1

@@ -309,6 +309,7 @@ def pade_from_archive(archive, loop=None, window=(-50,50)):
                 logger.warning(f"Requested window {window}, but recorded Green's function has window {(min(G.mesh.values()), max(G.mesh.values()))}")
                 # A mismatch is not a critical error, but the user might like 
                 # to know.
+            return G
         else:
             raise ImportError(f"Cannot get Pade approximants because TRIQS not available, and pade was not recorded in {loop}.")
 
