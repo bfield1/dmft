@@ -101,7 +101,7 @@ def plot_spectrum(archive_list, colors, vals=None, choice='Chi2Curvature',
         annotate_kw=dict(), alternate_annotate=False, colorbar_kw=dict(),
         uncertainty_cutoff=1, uncertainty_endpoints=True,
         uncertainty_alpha=0.5, scale_energy=1, pade_window=(-50,50),
-        pade_validate=True):
+        pade_validate=False):
     """
     Plots the spectra from archive_list on the same Axes
 

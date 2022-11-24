@@ -235,7 +235,7 @@ def get_pade(archive, block='up', index=0, window=(-50,50), validate=True):
 @archive_reader
 def plot_spectrum(archive, block='up', choice='Chi2Curvature', ax=None,
         colorbar=True, trim=True, index=0, pade_window=(-50,50),
-        pade_validate=True):
+        pade_validate=False):
     """
     Plots the spectral function as a function of DMFT loop
 
