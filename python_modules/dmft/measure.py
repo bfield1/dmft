@@ -24,6 +24,8 @@ from dmft.utils import archive_reader, h5_read_full_path, get_last_loop, format_
 import dmft.logging.cat
 from dmft.maxent import MaxEnt
 
+logger = logging.getLogger(__name__)
+
 def quasiparticle_residue(sigma, block='up', index=0):
     """Returns the quasiparticle residue from the (imaginary frequency) self-energy"""
     # Extract beta
@@ -247,6 +249,121 @@ def effective_spin_from_archive(archive, loop=None):
             return archive[loop]['effective_spin']
         else:
             raise ImportError(f"Cannot measure effective spin because TRIQS not available, and effective_spin was not recorded in {loop}.")
+
+def pade_from_Giw(Giw, window=(-50,50)):
+    """
+    From an imaginary-frequency Green's function, get real frequency with Pade
+
+    Accuracy doesn't seem to depend on the size of the window, so make it
+    as big as you need.
+
+    Inputs:
+        Giw - BlockGf or Gf with MeshImFreq
+        window - tuple of two numbers, energy window
+    Output:
+        BlockGf or Gf with same block/matrix structure as Giw but with a
+            MeshReFreq with window.
+    """
+    if not _triqs_available:
+        raise ImportError("Cannot do Pade approximants because TRIQS not available.")
+    # Get a real frequency Green's function matching the Giw structure
+    def gRe_from_gIm(g):
+        gRe = gf.GfReFreq(window=window, target_shape=g.target_shape,
+                indices=g.indices, name=g.name)
+        gRe.set_from_pade(g)
+        return gRe
+    if isinstance(Giw, gf.Gf):
+        return gRe_from_gIm(g)
+    if isinstance(Giw, gf.BlockGf):
+        blocks = [gRe_from_gIm(g) for (name, g) in Giw]
+        names = [name for (name, g) in Giw]
+        return gf.BlockGf(block_list=blocks, name_list=names)
+    raise TypeError("Unrecognised type for argument Giw")
+
+@archive_reader
+def pade_from_archive(archive, loop=None, window=(-50,50)):
+    """
+    Gets the Pade-approximated real-frequency G from a dmft archive
+
+    Inputs:
+        archive - HDFArchive or str, file to load data from
+        loop - int or str or None, loop to get G_iw from. If None, get from
+            latest loop.
+        window - tuple of two numbers, energy window
+    Output:
+        BlockGf with real frequency mesh
+    """
+    if len(window) != 2:
+        raise ValueError("window must have two elements")
+    loop = format_loop(archive, loop)
+    # If we have TRIQS, compute it
+    if _triqs_available:
+        Giw = archive[loop]['G_iw']
+        return pade_from_Giw(Giw, window)
+    else:
+        # Check if we have it recorded
+        if 'pade' in archive[loop]:
+            G = archive[loop]['pade']
+            # Check the window
+            if (min(G.mesh.values()) != window[0]) or (max(G.mesh.values()) != window[1]):
+                logger.warning(f"Requested window {window}, but recorded Green's function has window {(min(G.mesh.values()), max(G.mesh.values()))}")
+                # A mismatch is not a critical error, but the user might like 
+                # to know.
+        else:
+            raise ImportError(f"Cannot get Pade approximants because TRIQS not available, and pade was not recorded in {loop}.")
+
+def spectrum_from_G(G, validate=True):
+    """
+    From Gf with real frequency mesh, get spectrum.
+
+    Inputs:
+        G - Gf (not BlockGf)
+        validate - Boolean, do tests to check if the resulting spectrum is
+            sensible. Logs warnings if not.
+    Outputs:
+        omega - (N,) array
+        data - (N,) array
+    """
+    # Frequency mesh
+    omega = np.array([x for x in G.mesh.values()])
+    # Data. -Im(G)/pi to make it spectral function.
+    # Squeeze to convert 1*1 matrix to a scalar.
+    data = -G.imag.data.squeeze() / np.pi
+    if omega.shape != data.shape:
+        raise ValueError("Matrix-values Green's function not allowed.")
+    # Validation tests
+    if validate:
+        # Spectrum should be positive
+        if data.min() < -1e-3:
+            logger.warning(f"Spectrum has negative values, down to {data.min()}.")
+        # Spectrum should be normalised
+        norm = np.trapz(data, omega)
+        if abs(norm - 1) > 0.05:
+            logger.warning(f"Spectrum not normalised. Norm = {norm}.")
+    return omega, data
+
+def pade_spectrum_from_archive(archive, loop=None, window=(-50,50),
+        validate=True, block='up', indexL=0, indexR=0):
+    """
+    Gets the Pade-approximated spectrum from a dmft archive
+
+    Inputs:
+        archive - HDFArchive or str, file to load data from
+        loop - int or str or None, loop to get G_iw from. If None, get from
+            latest loop.
+        window - tuple of two numbers, energy window
+        validate - Boolean, do tests to check if the resulting spectrum is
+            sensible. Logs warnings if not.
+        block - str, block name
+        indexL - int, matrix left index
+        indexR - int, matrix right index
+    Outputs:
+        omega - (N,) array
+        data - (N,) array
+    """
+    G = pade_from_archive(archive, loop, window)
+    return spectrum_from_G(G[block][indexL,indexR], validate)
+
 
 def covariance(Glist, real=False, iL=0, iR=0):
     """
