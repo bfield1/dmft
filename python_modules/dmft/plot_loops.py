@@ -27,6 +27,7 @@ except ImportError:
 from dmft.maxent import MaxEnt
 from dmft.utils import h5_read_full_path, archive_reader, get_last_loop, count_loops
 from dmft.measure import quasiparticle_residue
+import dmft.measure
 
 
 def wrap_plot(func):
@@ -287,8 +288,7 @@ def plot_density(archive, ax):
     n_loops = count_loops(archive)
     density = []
     for i in range(n_loops):
-        g = h5_read_full_path(archive, 'loop-{:03d}/G_iw'.format(i))
-        density.append(g.total_density().real)
+        density.append(dmft.measure.density_from_archive(archive, loop=i))
     ax.plot(np.arange(n_loops), density, '-o')
     ax.set_xlabel('Loop')
     ax.set_ylabel('Density')
