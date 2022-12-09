@@ -155,7 +155,8 @@ def plot_spectrum(archive_list, colors, vals=None, choice='Chi2Curvature',
             This value determines the fractional cut-off value.
         uncertainty_endpoints - Boolean. Whether to extend the spectra sampled
             to include those just beyond the endpoints.
-        uncertainty_alpha - number or None. Alpha value for plotting the shaded             region (the color otherwise matches the curve)
+        uncertainty_alpha - number or None. Alpha value for plotting the shaded
+            region (the color otherwise matches the curve)
         scale_energy - number. Rescale all energies to be in these units.
             i.e. omega is multiplied by it, spectrum is divided by it.
         pade_window - tuple of 2 numbers, energy window for Pade approximation
@@ -186,8 +187,8 @@ def plot_spectrum(archive_list, colors, vals=None, choice='Chi2Curvature',
     for i in range(len(maxents)):
         # Get data for the spectrum
         if pade:
-            A = maxents[i][1]
-            omega = maxents[i][0]
+            A = maxents[i][1] / scale_energy
+            omega = maxents[i][0] * scale_energy
         else:
             A = maxents[i].get_spectrum(choice) / scale_energy
             omega = maxents[i].omega * scale_energy
