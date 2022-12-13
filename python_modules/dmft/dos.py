@@ -155,3 +155,51 @@ def bethe_dos(t, offset=0, bins=None, de=None):
     # Normalise such that sum(rho*delta) == 1
     rho = rho/delta
     return rho, energy, delta
+
+def square_dos(t, offset, nk, bins=None, de=None):
+    """
+    DOS for a square lattice
+
+    Inputs:
+        t - float, hopping constant
+        offset - float, energy offset of bands
+        nk - positive integer or tuple of integers. K-point grid to use.
+        bins - bins argument for np.histogram. Number of energy points.
+        de - positive float, used if bins is not provided. Width of energy
+            bins.
+    Outputs: Several numpy arrays, shape (number_of_bins,).
+        rho - density of states
+        energy - midpoints of energy bins
+        delta - width of energy bins
+    DOS is normalised such that np.sum(rho*delta) == 1.
+    """
+    # Define the square band
+    def band(kx, ky):
+        return -2*t * (np.cos(2*kx*pi) + np.cos(2*ky*pi))
+    # Compute the DOS
+    rho, energy, delta =  dos_from_band(band, nk, dims=2, bins=bins, de=de)
+    return rho, energy, delta
+
+def triangle_dos(t, offset, nk, bins=None, de=None):
+    """
+    DOS for a triangular lattice
+
+    Inputs:
+        t - float, hopping constant
+        offset - float, energy offset of bands
+        nk - positive integer or tuple of integers. K-point grid to use.
+        bins - bins argument for np.histogram. Number of energy points.
+        de - positive float, used if bins is not provided. Width of energy
+            bins.
+    Outputs: Several numpy arrays, shape (number_of_bins,).
+        rho - density of states
+        energy - midpoints of energy bins
+        delta - width of energy bins
+    DOS is normalised such that np.sum(rho*delta) == 1.
+    """
+    # Define the triangular band
+    def band(kx, ky):
+        return -2*t * (np.cos(2*kx*pi) + np.cos(2*ky*pi) + np.cos(2*pi*(ky-kx)))
+    # Compute the DOS
+    rho, energy, delta =  dos_from_band(band, nk, dims=2, bins=bins, de=de)
+    return rho, energy, delta
