@@ -37,18 +37,19 @@ class DMFTHubbard:
     Sets up and performs DMFT loops in the Hubbard model.
     Also holds data, so good for analysis.
     """
-    def __init__(self, beta, mu=None, solver_params={}, u=None, nl=None, n_iw=1025):
+    def __init__(self, beta, mu=None, solver_params={}, u=None, nl=None, n_iw=1025, n_tau=10001):
         self.last_loop = -1
         self.beta = beta
         if nl is None:
             self.S = Solver(beta = beta, gf_struct = [('up',[0]), ('down',[0])],
-                    n_iw=n_iw)
+                    n_iw=n_iw, n_tau=n_tau)
         else:
             self.S = Solver(beta = beta, gf_struct = [('up',[0]), ('down',[0])],
-                    n_iw=n_iw, n_l=nl)
+                    n_iw=n_iw, n_tau=n_tau, n_l=nl)
         self.mu = mu # You need to set this manually.
         self.solver_params = solver_params # You need to set this manually too
         self._n_iw = n_iw # Record for ease of access
+        self._n_tau = n_tau # Record for each of access
         self._nl = nl # Record for ease of access
         # n_cycles, length_cycle, n_warmup_cycles, measure_G_l
         if u is not None:
@@ -87,6 +88,7 @@ class DMFTHubbard:
         SG['dos'] = dict(rho=self.rho, energy=self.energy, delta=self.delta)
         SG['MPI_ranks'] = mpi.size
         SG['n_iw'] = self._n_iw
+        SG['n_tau'] = self._n_tau
         if self._nl is not None:
             SG['nl'] = self._nl
         if 'code' not in A:
@@ -249,8 +251,13 @@ class DMFTHubbard:
         except KeyError:
             # Default value
             n_iw = 1025
+        try:
+            n_tau = params['n_tau']
+        except KeyError:
+            # Default value
+            n_tau = 10001
         # Initialise
-        self = cls(beta, mu, solver_params, u, nl=nl, n_iw=n_iw)
+        self = cls(beta, mu, solver_params, u, nl=nl, n_iw=n_iw, n_tau=n_tau)
         # DOS
         self.rho = np.asarray(params['dos']['rho'])
         self.energy = np.asarray(params['dos']['energy'])
@@ -436,6 +443,8 @@ if __name__ == "__main__":
             help="measure_O_tau_min_ins")
     parser.add_argument('--niw', type=int, default=1025,
             help="Number of Matsubara frequencies used for the Green's function.")
+    parser.add_argument('--ntau', type=int, default=10001,
+            help="Number of imaginary time points used for the Green's function. Should be at least 6 times niw.")
     parser.add_argument('-p','--perturbation', action='store_true',
             help="Measure the perturbation order histograms.")
 
@@ -514,18 +523,18 @@ if __name__ == "__main__":
             cls = dmft.dmftsubstrate.DMFTHubbardSubstrateKagome
         else:
             cls = DMFTHubbardKagome
-        hubbard = cls(beta=args.beta, u=args.u, mu=args.mu, nl=args.nl, n_iw=args.niw)
+        hubbard = cls(beta=args.beta, u=args.u, mu=args.mu, nl=args.nl, n_iw=args.niw, n_tau=args.ntau)
         hubbard.set_dos(t=args.t, offset=args.offset, nk=args.nk, bins=args.bins)
     elif args.lattice == 'bethe':
         if substrate:
             cls = dmft.dmftsubstrate.DMFTHubbardSubstrateBethe
         else:
             cls = DMFTHubbardBethe
-        hubbard = cls(beta=args.beta, u=args.u, mu=args.mu, nl=args.nl, n_iw=args.niw)
+        hubbard = cls(beta=args.beta, u=args.u, mu=args.mu, nl=args.nl, n_iw=args.niw, n_tau=args.ntau)
         hubbard.set_dos(t=args.t, offset=args.offset, bins=args.bins)
     elif args.lattice == 'impurity':
         cls = dmft.dmftsubstrate.DMFTHubbardSubstrateImpurity
-        hubbard = cls(beta=args.beta, u=args.u, mu=args.mu, nl=args.nl, n_iw=args.niw)
+        hubbard = cls(beta=args.beta, u=args.u, mu=args.mu, nl=args.nl, n_iw=args.niw, n_tau=args.ntau)
         hubbard.set_dos(args.energy)
     else:
         raise ValueError(f"Unrecognised lattice {args.lattice}.")
