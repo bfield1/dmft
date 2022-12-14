@@ -181,6 +181,13 @@ class DMFTHubbardSubstrateKagome(DMFTHubbardSubstrate, dmft.dmft.DMFTHubbardKago
     # Inheritance covers all the necessary steps
     pass
 
+class DMFTHubbardSubstrateTriangle(DMFTHubbardSubstrate, dmft.dmft.DMFTHubbardTriangle):
+    """
+    DMFT with triangle Hubbard model coupled to a flat substrate
+    """
+    # Inheritance covers all the necessary steps
+    pass
+
 class DMFTHubbardSubstrateImpurity(DMFTHubbardSubstrate):
     """
     DMFT with Anderson Impurity Model coupled to a flat substrate

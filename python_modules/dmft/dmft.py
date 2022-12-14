@@ -400,6 +400,43 @@ class DMFTHubbardBethe(DMFTHubbard):
             pass
         return self
 
+class DMFTHubbardTriangle(DMFTHubbard):
+    def set_dos(self, t, offset, nk, bins=None, de=None):
+        """Record non-interacting DOS for triangular lattice."""
+        rho, energy, delta = dmft.dos.triangle_dos(t, offset, nk, bins, de)
+        super().set_dos(rho, energy, delta)
+        self.t = t
+        self.offset = offset
+        self.nk = nk
+    def record_metadata(self, A):
+        super().record_metadata(A)
+        SG = A['params']
+        SG['triangle_t'] = self.t
+        SG['triangle_nk'] = self.nk
+        SG['triangle_offset'] = self.offset
+    @classmethod
+    @dmft.utils.archive_reader2
+    def load(cls, archive):
+        # Do all the base class loading
+        self = super().load(archive)
+        # Load the triangle metadata
+        params, code = cls._load_get_params_and_code(archive)
+        # No big deal if it isn't there, as it is only for records.
+        try:
+            self.t = params['triangle_t']
+        except KeyError:
+            pass
+        try:
+            self.nk = params['triangle_nk']
+        except KeyError:
+            pass
+        try:
+            self.offset = params['triangle_offset']
+        except KeyError:
+            pass
+        return self
+
+
 if __name__ == "__main__":
     # Import here to reduce risk of circular dependencies,
     # and also because the substrates logic is exactly the same.
@@ -442,11 +479,14 @@ if __name__ == "__main__":
     subparsers = parser.add_subparsers(dest='lattice',
             help="Which lattice to solve. Or run a continuation job (which ignores all parameters except --archive and --nloops).")
 
+    # Lattice parsers which behave all the same
     kagome_parser = subparsers.add_parser('kagome')
-    kagome_parser.add_argument('-t', type=float, help="Hopping", default=1)
-    kagome_parser.add_argument('--offset', type=float, default=0, help="Offset")
-    kagome_parser.add_argument('--nk', type=int, default=2000, help="Number of k-points.")
-    kagome_parser.add_argument('--bins', type=int, default=300, help="Number of DOS energy bins.")
+    triangle_parser = subparsers.add_parser('triangle')
+    for P in [kagome_parser, triangle_parser]:
+        P.add_argument('-t', type=float, help="Hopping", default=1)
+        P.add_argument('--offset', type=float, default=0, help="Offset")
+        P.add_argument('--nk', type=int, default=2000, help="Number of k-points.")
+        P.add_argument('--bins', type=int, default=300, help="Number of DOS energy bins.")
     
     bethe_parser = subparsers.add_parser('bethe')
     bethe_parser.add_argument('-t', type=float, help="Hopping", default=1)
@@ -509,11 +549,17 @@ if __name__ == "__main__":
                     # (otherwise cannot write to archive later)
                     del loop
     # No continuation job. Go ahead with existing lattices.
-    elif args.lattice == 'kagome':
-        if substrate:
-            cls = dmft.dmftsubstrate.DMFTHubbardSubstrateKagome
-        else:
-            cls = DMFTHubbardKagome
+    elif (args.lattice == 'kagome') or (args.lattice == 'triangle'):
+        if args.lattice == 'kagome':
+            if substrate:
+                cls = dmft.dmftsubstrate.DMFTHubbardSubstrateKagome
+            else:
+                cls = DMFTHubbardKagome
+        elif args.lattice == 'triangle':
+            if substrate:
+                cls = dmft.dmftsubstrate.DMFTHubbardSubstrateTriangle
+            else:
+                cls = DMFTHubbardTriangle
         hubbard = cls(beta=args.beta, u=args.u, mu=args.mu, nl=args.nl, n_iw=args.niw)
         hubbard.set_dos(t=args.t, offset=args.offset, nk=args.nk, bins=args.bins)
     elif args.lattice == 'bethe':
