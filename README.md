@@ -29,8 +29,10 @@ HDF5 is used to save the data.
 
 If you use this code in your research, please cite it.
 The author is Bernard Field.
-There is a release on Zenodo (but of course I have to releas it before I get the DOI, so this will be updated).
-Until my thesis and other papers are published, citing the code directly will have to suffice.
+You can cite the code directly:
+[![DOI](https://zenodo.org/badge/DOI/10.5281/zenodo.7439857.svg)](https://doi.org/10.5281/zenodo.7439857)
+
+Other publications which can be cited (including my thesis) are in preparation.
 Check back soon to see when the reference list will be updated.
 
 # DMFT
