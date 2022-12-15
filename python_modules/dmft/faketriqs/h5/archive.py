@@ -18,6 +18,9 @@ reading data recorded by dmft and maxent.
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+# Modified such that calls to read h5 archives use h5py, and disables writing
+# to file.
+
 
 from importlib import import_module
 

@@ -1,5 +1,7 @@
 """
 DMFT solver for a system with a substrate
+
+    Copyright (C) 2022 Bernard Field, GNU GPL v3+
 """
 
 import numpy as np

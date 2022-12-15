@@ -1,5 +1,7 @@
 """
 Functions for measuring DMFT quantities.
+
+    Copyright (C) 2022 Bernard Field, GNU GPL v3+
 """
 
 import warnings

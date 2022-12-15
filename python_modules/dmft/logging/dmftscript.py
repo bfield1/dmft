@@ -1,5 +1,7 @@
 """
 Write the DMFT jobscript
+
+    Copyright (C) 2022 Bernard Field, GNU GPL v3+
 """
 
 from dmft.logging.writelog import commandline_process_autoname

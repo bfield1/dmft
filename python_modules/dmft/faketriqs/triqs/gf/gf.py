@@ -16,7 +16,8 @@
 #     https:#www.gnu.org/licenses/gpl-3.0.txt
 #
 # Authors: Michel Ferrero, Manuel, Olivier Parcollet, Hugo U. R. Strand, Nils Wentzell
-# This version with edits (mostly stuff removed) by Bernard Field
+# This version with edits (mostly stuff removed relating to the C functions) by
+# Bernard Field 2022
 
 import itertools, warnings, numbers
 from functools import reduce # Valid in Python 2.6+, required in Python 3

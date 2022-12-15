@@ -1,5 +1,7 @@
 """
 Return the current git hash
+
+    Copyright (C) 2022 Bernard Field, GNU GPL v3+
 """
 
 import os.path

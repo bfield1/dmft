@@ -3,6 +3,8 @@ For deleting entries in a HDF5 archive
 
 NOTE: HDF5 doesn't support true deletion. Only deleting the names. It doesn't
 free up file space.
+
+    Copyright (C) 2022 Bernard Field, GNU GPL v3+
 """
 import argparse
 import sys

@@ -16,6 +16,8 @@
 # You should have received a copy of the GNU General Public License
 # along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
+# This version heavily modified by Bernard Field 2022, with many functions
+# removed, to work in a read-only capacity without TRIQS.
 
 from .omega_meshes import HyperbolicOmegaMesh
 from .alpha_meshes import LogAlphaMesh

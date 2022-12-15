@@ -1,5 +1,7 @@
 """
 Does plotting of DMFT data comparing different DMFT loops
+
+    Copyright (C) 2022 Bernard Field, GNU GPL v3+
 """
 
 import functools

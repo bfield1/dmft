@@ -2,6 +2,8 @@
 Saves post-processing measurements to the archive
 
 Especially useful for when TRIQS might not be available later
+
+    Copyright (C) 2022 Bernard Field, GNU GPL v3+
 """
 
 import argparse

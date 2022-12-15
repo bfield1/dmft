@@ -1,4 +1,20 @@
-Scripts which interface with TRIQS to perform DMFT calculations.
+```
+dmft - Python package using TRIQS to perform DMFT calculations
+Copyright (C) 2022 Bernard Field
+
+This program is free software: you can redistribute it and/or modify
+it under the terms of the GNU General Public License as published by
+the Free Software Foundation, either version 3 of the License, or
+(at your option) any later version.
+
+This program is distributed in the hope that it will be useful,
+but WITHOUT ANY WARRANTY; without even the implied warranty of
+MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+GNU General Public License for more details.
+
+You should have received a copy of the GNU General Public License
+along with this program.  If not, see <https://www.gnu.org/licenses/>.
+```
 
 Dynamical mean-field theory (DMFT) is a useful method for calculating the properties of strongly correlated lattices.
 See e.g. <https://aip.scitation.org/doi/abs/10.1063/1.1800733> for an overview or <https://link.aps.org/doi/10.1103/RevModPhys.68.13> for a comprehensive review.
@@ -8,8 +24,6 @@ It has utilities allowing it to read and do limited post-processing even without
 Core functions are available via command line arguments for easy interfacing with batch scripts.
 
 HDF5 is used to save the data.
-
-This is a pre-release. This software is not yet licensed for public use.
 
 # Citation
 

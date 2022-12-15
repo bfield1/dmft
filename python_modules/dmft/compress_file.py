@@ -1,6 +1,8 @@
 """
 A utility to compress a HDF5 archive by cutting out unnecessary data
 
+    Copyright (C) 2022 Bernard Field, GNU GPL v3+
+
 Currently, this is just G_rec in the maxent results, because it's big
 And, optionally, old loops
 """

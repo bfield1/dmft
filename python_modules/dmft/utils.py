@@ -1,3 +1,9 @@
+"""
+Assorted utility functions, mostly pertaining to reading/writing data
+
+    Copyright (C) 2022 Bernard Field, GNU GPL v3+
+"""
+
 import functools
 import warnings
 import logging

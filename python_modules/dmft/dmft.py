@@ -1,5 +1,7 @@
 """
 Main solver for DMFT
+
+    Copyright (C) 2022 Bernard Field, GNU GPL v3+
 """
 
 import argparse

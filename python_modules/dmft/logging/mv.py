@@ -1,5 +1,7 @@
 """
 Renames a HDF5 object
+
+    Copyright (C) 2022 Bernard Field, GNU GPL v3+
 """
 import argparse
 import sys

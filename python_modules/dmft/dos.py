@@ -1,5 +1,7 @@
 """
 Generates the density of states.
+
+    Copyright (C) 2022 Bernard Field, GNU GPL v3+
 """
 
 from math import pi

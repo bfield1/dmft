@@ -1,5 +1,7 @@
 """
 For reading and printing logs saved to HDF5 archives
+
+    Copyright (C) 2022 Bernard Field, GNU GPL v3+
 """
 import argparse
 

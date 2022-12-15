@@ -17,6 +17,8 @@
 #
 # Authors: Olivier Parcollet, Nils Wentzell, Alexander Hampel
 
+# This file was originally triqs.utility.mpi_nompi
+# But faketriqs doesn't use MPI, so nompi is the only option here.
 
 # this module provides a simple dummy class for MPI in case no MPI env
 # is loaded and triqs is executed in serial

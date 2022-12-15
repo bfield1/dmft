@@ -1,3 +1,6 @@
+#   Copyright (C) 2022 Bernard Field, GNU GPL v3+
+# A manual Python reverse engineering of triqs.gf.meshes, which was originally C++
+
 import numpy as np
 
 from .mesh_point import MeshValueGenerator, MeshPoint

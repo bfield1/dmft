@@ -1,3 +1,5 @@
+#   Copyright (C) 2022 Bernard Field, GNU GPL v3+
+
 class GfIndices(list):
     def __reduce_to_dict__(self):
         raise NotImplementedError

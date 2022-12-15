@@ -1,5 +1,7 @@
 """
 Runs basic MaxEnt processing
+
+    Copyright (C) 2022 Bernard Field, GNU GPL v3+
 """
 import argparse
 from warnings import warn

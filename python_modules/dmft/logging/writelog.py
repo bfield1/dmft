@@ -7,6 +7,8 @@ without installing TRIQS.
 It also lets me write attributes, if I ever decide that is useful.
 h5 is specialised for reading/writing TRIQS data, but h5py lets me use the
 full power of HDF5.
+
+    Copyright (C) 2022 Bernard Field, GNU GPL v3+
 """
 import argparse
 
