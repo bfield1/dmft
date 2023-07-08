@@ -32,8 +32,15 @@ The author is Bernard Field.
 You can cite the code directly:
 [![DOI](https://zenodo.org/badge/DOI/10.5281/zenodo.7439857.svg)](https://doi.org/10.5281/zenodo.7439857)
 
-Other publications which can be cited (including my thesis) are in preparation.
-Check back soon to see when the reference list will be updated.
+This code was first used in my thesis:
+
+Field, Bernard Allan (2023). Correlated electrons in a frustrated two-dimensional lattice on substrates. Monash University. Thesis. https://doi.org/10.26180/22218955.v1
+
+This code applied to the kagome lattice was used in the following paper:
+
+Benjamin Lowe *et. al* (2023). Gate control of Mott metal-insulator transition in a 2D metal-organic framework. https://arxiv.org/abs/2305.14983
+
+A paper regarding the substrates submodule is in preparation.
 
 # DMFT
 
