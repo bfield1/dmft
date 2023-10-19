@@ -103,7 +103,7 @@ def plot_spectrum(archive_list, colors, vals=None, choice='Chi2Curvature',
         annotate_kw=dict(), alternate_annotate=False, colorbar_kw=dict(),
         uncertainty_cutoff=1, uncertainty_endpoints=True,
         uncertainty_alpha=0.5, scale_energy=1, pade_window=(-50,50),
-        pade_validate=False):
+        pade_validate=False, plot_kwargs={}):
     """
     Plots the spectra from archive_list on the same Axes
 
@@ -163,6 +163,7 @@ def plot_spectrum(archive_list, colors, vals=None, choice='Chi2Curvature',
             i.e. omega is multiplied by it, spectrum is divided by it.
         pade_window - tuple of 2 numbers, energy window for Pade approximation
         pade_validate - Boolean. Whether to check that Pade spectra are sensible
+        plot_kwargs - dictionary. Keyword arguments passed to ax.plot
     """
     # Get colors
     colors = _choose_colors(colors, vals, len(archive_list), logcb,
@@ -197,7 +198,7 @@ def plot_spectrum(archive_list, colors, vals=None, choice='Chi2Curvature',
         # Offset
         A += offset * i
         # Plot
-        ax.plot(omega, A, c=colors[i])
+        ax.plot(omega, A, c=colors[i], **plot_kwargs)
         # Do the uncertainty plotting
         if uncertainty_cutoff < 1:
             spec, _, _ = maxents[i].get_spectrum_curvature_comparison(
