@@ -103,7 +103,8 @@ def plot_spectrum(archive_list, colors, vals=None, choice='Chi2Curvature',
         annotate_kw=dict(), alternate_annotate=False, colorbar_kw=dict(),
         uncertainty_cutoff=1, uncertainty_endpoints=True,
         uncertainty_alpha=0.5, scale_energy=1, pade_window=(-50,50),
-        pade_validate=False, plot_kwargs={}):
+        pade_validate=False, broadening_type=None, broadenings=0,
+        plot_kwargs={}):
     """
     Plots the spectra from archive_list on the same Axes
 
@@ -163,6 +164,10 @@ def plot_spectrum(archive_list, colors, vals=None, choice='Chi2Curvature',
             i.e. omega is multiplied by it, spectrum is divided by it.
         pade_window - tuple of 2 numbers, energy window for Pade approximation
         pade_validate - Boolean. Whether to check that Pade spectra are sensible
+        broadening_type - str (optional). Apply this broadening to the spectra.
+            Allowed values: 
+        broadenings - float or list of floats. Broadenings to apply to each
+            spectrum. This is in units *after* scale_energy.
         plot_kwargs - dictionary. Keyword arguments passed to ax.plot
     """
     # Get colors
@@ -173,6 +178,12 @@ def plot_spectrum(archive_list, colors, vals=None, choice='Chi2Curvature',
         raise ValueError("archive_list and colors must have matching length")
     if vals is not None and len(archive_list) != len(vals):
         raise ValueError("archive_list and vals must have matching length")
+    try:
+        len(broadenings)
+    except TypeError:
+        broadenings = [broadenings] * len(archive_list)
+    if len(broadenings) != len(archive_list):
+        raise ValueError("archive_list and broadenings must have matching length")
     # Catch a trivial case: no data
     if len(archive_list) == 0:
         return
@@ -195,6 +206,9 @@ def plot_spectrum(archive_list, colors, vals=None, choice='Chi2Curvature',
         else:
             A = maxents[i].get_spectrum(choice) / scale_energy
             omega = maxents[i].omega * scale_energy
+        # Broadening
+        if broadening_type is not None:
+            A = broaden_function(omega, A, sigma=broadenings[i], broadening_type=broadening_type)
         # Offset
         A += offset * i
         # Plot
@@ -609,3 +623,54 @@ def plot_chiT(A):
     """Plots the susceptibility times temperature from different archives"""
     return chiT_from_archive(A)
 
+def broaden_function(x, y, sigma:float, broadening_type:str):
+    """
+    Convolve the data y(x) = y with a specified broadening function.
+    
+    The x data is assumed to be unevenly spaced. A len(x)*len(x) matrix is
+    created as an intermediate.
+    Convolution is performed using integration by the trapezoidal rule.
+    
+    Options for broadening_type:
+    thermal: 1/(2 (cosh(x/sigma)+1))
+        sigma is k_B T in the Fermi Dirac distribution.
+    gaussian: exp(-x**2 / (2*sigma**2)) / (sigma*sqrt(2*pi))
+    lorentzian: sigma / (x**2 + sigma**2/4) / (2*pi)
+    delta or "none": no broadening applied.
+
+    Parameters
+    ----------
+    x : array-like of floats
+        x data.
+    y : array-like of floats
+        y data, same length as x data
+    sigma : positive float
+        Broadening parameter.
+    broadening_type : str
+
+    Returns
+    -------
+    Array like y, but broadened. Uses same x points.
+
+    """
+    if len(x) != len(y):
+        raise ValueError(f"x and y must have the same length, got {len(x)} and {len(y)} instead.")
+    if broadening_type == 'delta' or broadening_type == 'none':
+        return y
+    # Grab the normalised function we want to convolve with.
+    if broadening_type == 'thermal':
+        f = lambda x: 1/(2 * sigma * (np.cosh(x/sigma) + 1))
+    elif broadening_type == 'gaussian':
+        f = lambda x: np.exp(-x**2 / (2 * sigma**2)) / (sigma * np.sqrt(2*np.pi))
+    elif broadening_type == 'lorentzian':
+        f = lambda x: sigma / (x**2 + sigma**2/4) / (2 * np.pi)
+    else:
+        ValueError(f"Do not recognise broadening_type {broadening_type}.")
+    # Construct our convolution matrix
+    # F[n,i] = f(x[n] - x[i]) * dx[i]
+    dx = (np.diff(x, append=x[-1]) + np.diff(x, prepend=x[0]))/2 # Trapezoidal rule
+    xx1, xx2 = np.meshgrid(x,x)
+    F = f(xx1 - xx2) * dx
+    # Do the convolution
+    return np.matmul(F,y)
+    
