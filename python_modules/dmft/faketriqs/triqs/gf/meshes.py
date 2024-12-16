@@ -53,8 +53,14 @@ class MeshImTime(Mesh_Generic):
     @classmethod
     def __factory_from_dict__(cls, name, D):
         """ this handles reading from h5 """
-        beta = D['domain']['beta']
-        S = D['domain']['statistic']
+        if 'domain' in D:
+            # Backwards compatibility with TRIQS 3.0
+            beta = D['domain']['beta']
+            S = D['domain']['statistic']
+        else:
+            # In TRIQS 3.1, they removed 'domain'.
+            beta  = D['beta']
+            S = D['statistic']
         if S == 'F':
             S = 'Fermion'
         elif S == 'B':
@@ -119,8 +125,14 @@ class MeshImFreq(Mesh_Generic):
     @classmethod
     def __factory_from_dict__(cls, name, D):
         """ this handles reading from h5 """
-        beta = D['domain']['beta']
-        S = D['domain']['statistic']
+        if 'domain' in D:
+            # Backwards compatibility with TRIQS 3.0
+            beta = D['domain']['beta']
+            S = D['domain']['statistic']
+        else:
+            # In TRIQS 3.1, they removed 'domain'.
+            beta  = D['beta']
+            S = D['statistic']
         positive_freq_only = bool(D['positive_freq_only'])
         n = D['size']
         if positive_freq_only:
