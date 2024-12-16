@@ -394,7 +394,7 @@ def plot_greens_function(archive, gf_name='G_iw', ax=None, block='up', xmax=None
         ax.plot(data[1]['xdata'], data[1]['ydata'],
                 color=(0,0,i/max(n_loops-1,1)), ls='--')
     if first:
-        raise(KeyError,f"{gf_name} not found.")
+        raise KeyError(f"{gf_name} not found.")
     # Green's functions are symmetric or antisymmetric, so values less than 0
     # can be ignored
     ax.set_xlim(0, xmax)
