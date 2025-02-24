@@ -6,6 +6,7 @@ Runs basic MaxEnt processing
 import argparse
 from warnings import warn
 import warnings
+from subprocess import CalledProcessError
 import functools
 import logging
 
@@ -756,7 +757,10 @@ def estimate_error(G, permissive=True):
 def write_metadata(archive, name='code'):
     """Records maxent version information to a HDF5 archive."""
     h5_write_full_path(archive, me.version, name+'/triqs_maxent_version')
-    h5_write_full_path(archive, dmft.version.get_git_hash(), name+'/dmft_maxent_version')
+    try:
+        h5_write_full_path(archive, dmft.version.get_git_hash(), name+'/dmft_maxent_version')
+    except CalledProcessError:
+        logger.warning("Unable to get dmft_maxent_version")
 
 
 
