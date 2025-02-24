@@ -42,12 +42,16 @@ class DMFTHubbard:
     def __init__(self, beta, mu=None, solver_params={}, u=None, nl=None, n_iw=1025, n_tau=10001):
         self.last_loop = -1
         self.beta = beta
-        if nl is None:
-            self.S = Solver(beta = beta, gf_struct = [('up',[0]), ('down',[0])],
-                    n_iw=n_iw, n_tau=n_tau)
+        kwargs = dict(beta=beta, n_iw=n_iw, n_tau=n_tau)
+        if nl is not None:
+            kwargs['n_l'] = nl
+        # Triqs version 3.1.0 changed how to specify gf_struct.
+        version = tuple(int(x) for x in triqs.version.version.split('.'))
+        if version < (3,1,0):
+            kwargs['gf_struct'] = [('up',[0]), ('down',[0])]
         else:
-            self.S = Solver(beta = beta, gf_struct = [('up',[0]), ('down',[0])],
-                    n_iw=n_iw, n_tau=n_tau, n_l=nl)
+            kwargs['gf_struct'] = [('up',1), ('down',1)]
+        self.S = Solver(**kwargs)
         self.mu = mu # You need to set this manually.
         self.solver_params = solver_params # You need to set this manually too
         self._n_iw = n_iw # Record for ease of access
