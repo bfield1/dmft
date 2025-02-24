@@ -16,6 +16,7 @@ try:
     import triqs.gf as gf
     import triqs.operators as op
     import triqs.atom_diag
+    import triqs.version
     _triqs_available = True
 except ImportError:
     triqslogger.warning("triqs not found. Loading fake version")
@@ -268,12 +269,21 @@ def pade_from_Giw(Giw, window=(-50,50)):
     """
     if not _triqs_available:
         raise ImportError("Cannot do Pade approximants because TRIQS not available.")
+    version = tuple(int(x) for x in triqs.version.version.split('.'))
     # Get a real frequency Green's function matching the Giw structure
-    def gRe_from_gIm(g):
-        gRe = gf.GfReFreq(window=window, target_shape=g.target_shape,
-                indices=g.indices, name=g.name)
-        gRe.set_from_pade(g)
-        return gRe
+    if version < (3,1,0):
+        def gRe_from_gIm(g):
+            gRe = gf.GfReFreq(window=window, target_shape=g.target_shape,
+                    indices=g.indices, name=g.name)
+            gRe.set_from_pade(g)
+            return gRe
+    else:
+        # Gf indices were deprecated around version 3.1.0.
+        def gRe_from_gIm(g):
+            gRe = gf.GfReFreq(window=window, target_shape=g.target_shape,
+                    name=g.name)
+            gRe.set_from_pade(g)
+            return gRe
     if isinstance(Giw, gf.Gf):
         return gRe_from_gIm(g)
     if isinstance(Giw, gf.BlockGf):
