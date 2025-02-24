@@ -38,7 +38,7 @@ Field, Bernard Allan (2023). Correlated electrons in a frustrated two-dimensiona
 
 This code applied to the kagome lattice was used in the following paper:
 
-Benjamin Lowe *et. al* (2023). Gate control of Mott metal-insulator transition in a 2D metal-organic framework. https://arxiv.org/abs/2305.14983
+Benjamin Lowe *et. al*, *Nature Communications* (2024). Local gate control of Mott metal-insulator transition in a 2D metal-organic framework. https://doi.org/10.1038/s41467-024-47766-8
 
 A paper regarding the substrates submodule is in preparation.
 
