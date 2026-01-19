@@ -1,0 +1,23 @@
+[build-system]
+requires = ["setuptools >= 80", "setuptools_scm[simple] >= 8"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "dmft"
+dynamic = ["version"]
+description = "Wrapper for performing DMFT calculations with TRIQS."
+requires-python = ">=3.9"
+dependencies = [
+    "h5py",
+    "numpy",
+    "matplotlib",
+]
+authors = [
+    {name = "Bernard Field", email = "bfield@lbl.gov"},
+]
+maintainers = [
+    {name = "Bernard Field", email = "bfield@lbl.gov"},
+]
+readme = "README.md"
+license = "GPL-3.0-or-later"
+license-files = ["LICENSE.txt"]
