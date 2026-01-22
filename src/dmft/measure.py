@@ -27,6 +27,10 @@ from dmft.utils import archive_reader, h5_read_full_path, get_last_loop, format_
 import dmft.logging.cat
 from dmft.maxent import MaxEnt
 
+# Backwards compatibility; numpy 2.0 renamed trapz to trapezoid
+if not hasattr(np, "trapezoid"):
+    np.trapezoid = np.trapz
+
 logger = logging.getLogger(__name__)
 
 def quasiparticle_residue(sigma, block='up', index=0):
@@ -285,7 +289,7 @@ def pade_from_Giw(Giw, window=(-50,50)):
             gRe.set_from_pade(g)
             return gRe
     if isinstance(Giw, gf.Gf):
-        return gRe_from_gIm(g)
+        return gRe_from_gIm(Giw)
     if isinstance(Giw, gf.BlockGf):
         blocks = [gRe_from_gIm(g) for (name, g) in Giw]
         names = [name for (name, g) in Giw]
@@ -350,7 +354,7 @@ def spectrum_from_G(G, validate=True):
         if data.min() < -1e-3:
             logger.warning(f"Spectrum has negative values, down to {data.min()}.")
         # Spectrum should be normalised
-        norm = np.trapz(data, omega)
+        norm = np.trapezoid(data, omega)
         if abs(norm - 1) > 0.05:
             logger.warning(f"Spectrum not normalised. Norm = {norm}.")
     return omega, data
@@ -519,7 +523,7 @@ def integrate_tau(G, real=True):
     else:
         data = G.data
     # Integrate
-    return np.trapz(data, tau)
+    return np.trapezoid(data, tau)
 
 @archive_reader
 def integrate_O_tau_from_archive(archive, real=True):
